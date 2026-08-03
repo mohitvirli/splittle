@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { TIERS } from '../game/storage'
+import { allTiersWon, loadProgress, TIERS } from '../game/storage'
 
 type Phase = 'title' | 'shape' | 'open'
 
@@ -101,7 +101,10 @@ export function Intro({ onDone }: Props) {
   }, [])
 
   const start = useCallback(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // Nothing to open into when every tier is already won — the accordion isn't on screen
+    // to morph the shape onto or to hand the tier labels back to. Skip straight through,
+    // the same as the reduced-motion path, rather than playing the shape dance into a void.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || allTiersWon(loadProgress())) {
       release(masthead())
       TIERS.forEach((t) => release(tierLabel(t)))
       onDone()

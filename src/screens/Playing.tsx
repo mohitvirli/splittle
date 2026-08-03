@@ -66,12 +66,19 @@ export function Playing({ active, intro, onHome }: PlayingProps) {
   }, [active])
 
   useEffect(() => {
-    if (game.ready && !game.round.solved && !game.allDone) keepFocus()
-  }, [keepFocus, game.ready, game.round.solved, game.allDone, game.tier, game.round.words.length, game.error?.nonce])
+    // Kept focused through a solve too — that's what lets Enter carry straight on to the
+    // next target instead of the keyboard dropping the moment the round finishes.
+    if (game.ready && !game.allDone) keepFocus()
+  }, [keepFocus, game.ready, game.allDone, game.tier, game.round.words.length, game.error?.nonce])
 
   const shake = game.error?.kind === 'NOT_A_WORD'
-  /** Everything the intro is not carrying holds back until the shape has finished opening. */
-  const quiet = `transition-opacity duration-500 ${intro ? 'opacity-0' : 'opacity-100'}`
+  /**
+   * Everything the intro is not carrying holds back until the shape has finished opening.
+   * pointer-events-none matters as much as the opacity — without it, buttons underneath
+   * the intro (undo, restart, play again, the collapsed tier rows) stay clickable while
+   * invisible, so a tap that looks like it hit the intro can silently act on the game.
+   */
+  const quiet = `transition-opacity duration-500 ${intro ? 'pointer-events-none opacity-0' : 'opacity-100'}`
 
   return (
     <main className="relative z-10 mx-auto flex h-[var(--app-height)] w-full max-w-[30rem] flex-col px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -93,11 +100,18 @@ export function Playing({ active, intro, onHome }: PlayingProps) {
       </header>
 
       {game.allDone ? (
-        <AllDone streak={game.progress.streak} />
+        // Gated on the intro like everything else — without this, a refresh or a click on
+        // the masthead showed the results screen and the intro's title/shape stacked on
+        // top of each other, since this branch was never told to make way.
+        <div className={`flex min-h-0 flex-1 flex-col ${quiet}`}>
+          <AllDone streak={game.progress.streak} onPlayAgain={game.playAgain} />
+        </div>
       ) : (
         /* One section per target. The one being played expands to hold the game; the rest
-           stay as rules you can drop onto once they have opened. */
-        <div className="flex min-h-0 flex-1 flex-col">
+           stay as rules you can drop onto once they have opened. An already-unlocked but
+           inactive row (3 or 2 words, once 4 is done) is a real button underneath the
+           intro — pointer-events-none keeps a tap on the intro from also switching tiers. */
+        <div className={`flex min-h-0 flex-1 flex-col ${intro ? 'pointer-events-none' : ''}`}>
           {TIERS.map((t) => {
             const open = game.isOpen(t)
             const won = game.progress.tiersWon[t]
@@ -257,6 +271,14 @@ function Round({
         <form
           onSubmit={(e) => {
             e.preventDefault()
+            // A disabled input never receives Enter, so once the round is solved this is
+            // the only way Enter still does something — it carries on to the next target
+            // instead of playing a word.
+            if (game.round.solved) {
+              const next = TIERS.find((t) => !game.progress.tiersWon[t])
+              if (next) game.setTier(next)
+              return
+            }
             game.submitWord()
           }}
           style={shake ? { animation: 'reject 420ms var(--ease-out-quint) both' } : undefined}
@@ -284,7 +306,10 @@ function Round({
                 game.undo()
               }
             }}
-            disabled={!game.ready || game.round.solved}
+            // Only gated on readiness now — staying enabled through a solve is what lets
+            // Enter reach the form above. WordDisplay ignores the draft once solved, so
+            // stray keystrokes here have nowhere to show up.
+            disabled={!game.ready}
             autoCapitalize="characters"
             autoCorrect="off"
             autoComplete="off"
@@ -414,7 +439,7 @@ function IconButton({
 }
 
 /** Placeholder. The share card lands here. */
-function AllDone({ streak }: { streak: number }) {
+function AllDone({ streak, onPlayAgain }: { streak: number; onPlayAgain: () => void }) {
   return (
     <div
       className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 text-center"
@@ -429,6 +454,15 @@ function AllDone({ streak }: { streak: number }) {
       <p className="max-w-[24ch] font-body text-sm text-ink-soft italic">
         The share card goes here.
       </p>
+      {/* Nothing rotates the seed daily yet, so without this a finished puzzle is a dead
+          end — every future visit lands right back on this screen with no way to play. */}
+      <button
+        type="button"
+        onClick={onPlayAgain}
+        className="label touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+      >
+        Play again →
+      </button>
     </div>
   )
 }

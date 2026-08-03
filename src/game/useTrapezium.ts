@@ -144,6 +144,24 @@ export function useTrapezium() {
     }
   }, [dict, effective, round, setRound, tier])
 
+  /**
+   * The only way out of "all three crossed" — there is no daily rotation, so without this
+   * finishing the puzzle once would strand every future visit on the results screen with
+   * nothing left to play. Streak survives; everything about the attempt itself does not.
+   */
+  const playAgain = useCallback(() => {
+    setProgress((current) => {
+      const updated: Progress = { tiersWon: { 4: false, 3: false, 2: false }, streak: current.streak }
+      saveProgress(updated)
+      return updated
+    })
+    setRounds(freshRounds())
+    setTierState(4)
+    setDraft('')
+    setError(null)
+    setJustCovered(null)
+  }, [])
+
   const undo = useCallback(() => {
     if (round.words.length === 0) return
     setRound(undoLast(round))
@@ -186,6 +204,7 @@ export function useTrapezium() {
     undo,
     restart,
     setTier,
+    playAgain,
   }
 }
 
