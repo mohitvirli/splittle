@@ -1,0 +1,205 @@
+@import 'tailwindcss';
+
+@theme {
+  /* One family throughout. Both names are kept so a display face can be reintroduced
+     without touching every component. */
+  --font-display: 'Satoshi', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: 'Satoshi', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Flat off-white beige. Nothing here is a pure neutral. */
+  --color-paper: oklch(0.975 0.018 88);
+  --color-paper-deep: oklch(0.948 0.024 86);
+  --color-ink: oklch(0.245 0.016 62);
+  --color-ink-soft: oklch(0.545 0.02 64);
+  --color-ink-faint: oklch(0.72 0.018 70);
+  --color-rule: oklch(0.855 0.02 76);
+  --color-accent: oklch(0.48 0.075 142);
+  --color-accent-soft: oklch(0.62 0.065 142);
+  /* The landing's ground. Tinted toward the paper's hue rather than pure black. */
+  --color-night: oklch(0.17 0.014 62);
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  color-scheme: light;
+  /* Replaced at runtime with the visual viewport's height — see useViewportHeight. The
+     dvh fallback covers first paint and anything without visualViewport. */
+  --app-height: 100dvh;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  /* Nothing in the app scrolls the page. Without this iOS scrolls the layout viewport to
+     reveal the focused input and drags the header out of sight. */
+  overflow: hidden;
+}
+
+@utility label {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The chain scrolls, but a bar flickering in during the entry animation reads as a glitch. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── The landing moment ─────────────────────────────────────────────────────
+   A letter the chain has just claimed flares in the accent, then hands colour
+   back to its actual position: spent letters mute, the new pivot stays readable. */
+@keyframes claim-settle {
+  0% {
+    color: var(--color-accent);
+    transform: translateY(0.05em);
+  }
+  70% {
+    color: var(--color-accent);
+    transform: translateY(0);
+  }
+}
+
+/* ── The counter drop ───────────────────────────────────────────────────────
+   Old figure lifts off the page, new figure rises into its place. Reads as a
+   fall, not a swap. */
+@keyframes figure-in {
+  from {
+    transform: translateY(0.42em);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes delta-in {
+  0% {
+    transform: translateY(-0.5em);
+    opacity: 0;
+  }
+  22% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0.5em);
+    opacity: 0;
+  }
+}
+
+@keyframes reject {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  18% {
+    transform: translateX(-0.34em);
+  }
+  38% {
+    transform: translateX(0.28em);
+  }
+  58% {
+    transform: translateX(-0.16em);
+  }
+  80% {
+    transform: translateX(0.07em);
+  }
+}
+
+/* Message swaps in a fixed slot: no movement, just a hand-over. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── The landing sequence ───────────────────────────────────────────────────
+   Wordmark first, then the three targets stack into the shape the game is named
+   after, then the widest one opens into the round. */
+@keyframes title-in {
+  from {
+    transform: translateY(0.4em);
+    opacity: 0;
+    letter-spacing: 0.12em;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+    letter-spacing: 0.01em;
+  }
+}
+
+/* Bands fade in place rather than sliding — the shape has to stay whole while it arrives,
+   and any movement would pull its sloping edges apart. */
+@keyframes band-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The shape takes the screen as the round opens behind it. */
+@keyframes shape-open {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.16);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-rise {
+  from {
+    transform: translateY(0.55rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

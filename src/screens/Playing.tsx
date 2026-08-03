@@ -1,0 +1,434 @@
+import { useCallback, useEffect, useRef } from 'react'
+import { LockIcon, RestartIcon, UndoIcon } from '../components/icons'
+import { WordChain } from '../components/WordChain'
+import { WordDisplay } from '../components/WordDisplay'
+import { PUZZLE_NUMBER, TIERS } from '../game/storage'
+import { useTrapezium } from '../game/useTrapezium'
+import type { SubmitFailure } from '../engine/types'
+
+const listLetters = (letters: string): string => {
+  const parts = letters.split('')
+  if (parts.length === 1) return parts[0]
+  return `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}`
+}
+
+interface ErrorContext {
+  word: string
+  pivot: string
+  reachable: string
+  seed: string
+  used: number
+  target: number
+}
+
+function errorText(kind: SubmitFailure, ctx: ErrorContext): string {
+  const { word, pivot, reachable, seed, used, target } = ctx
+  switch (kind) {
+    case 'NOT_A_WORD':
+      return `${word} isn’t in the dictionary.`
+    case 'NO_LANDING':
+      return `${word} is a word, but it doesn’t end on ${listLetters(reachable)}.`
+    case 'BAD_PREFIX':
+      return `It has to start with ${pivot}.`
+    case 'TOO_SHORT':
+      return `It has to be longer than ${pivot}.`
+    case 'ALREADY_USED':
+      return `${word} is already in the chain.`
+    case 'CONTAINS_SEED':
+      return `It can’t contain ${seed}.`
+    case 'ENDS_EARLY':
+      return `${word} finishes on word ${used + 1}. This round needs exactly ${target}.`
+    case 'MUST_FINISH':
+      return `${word} is your last word, so it has to reach ${seed[seed.length - 1]}.`
+    case 'NO_WORDS_LEFT':
+      return `No words left. Undo, or restart the round.`
+  }
+}
+
+interface PlayingProps {
+  /** False while the landing covers the game — nothing here should grab focus behind it. */
+  active: boolean
+  /**
+   * The intro is running. The masthead and the tier labels stay — the intro moves those
+   * very elements rather than animating stand-ins — and everything around them waits.
+   */
+  intro: boolean
+  onHome: () => void
+}
+
+export function Playing({ active, intro, onHome }: PlayingProps) {
+  const game = useTrapezium()
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // The display IS the input, so the field must hold focus for the keyboard to stay up.
+  const keepFocus = useCallback(() => {
+    if (active) inputRef.current?.focus()
+  }, [active])
+
+  useEffect(() => {
+    if (game.ready && !game.round.solved && !game.allDone) keepFocus()
+  }, [keepFocus, game.ready, game.round.solved, game.allDone, game.tier, game.round.words.length, game.error?.nonce])
+
+  const shake = game.error?.kind === 'NOT_A_WORD'
+  /** Everything the intro is not carrying holds back until the shape has finished opening. */
+  const quiet = `transition-opacity duration-500 ${intro ? 'opacity-0' : 'opacity-100'}`
+
+  return (
+    <main className="relative z-10 mx-auto flex h-[var(--app-height)] w-full max-w-[30rem] flex-col px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <header
+        className={`flex shrink-0 items-baseline justify-between border-b pb-1.5 transition-colors duration-500 ${
+          intro ? 'border-transparent' : 'border-ink'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={onHome}
+          aria-label="Back to the title"
+          data-masthead
+          className="origin-center touch-manipulation font-display text-xl tracking-[0.03em]"
+        >
+          Trapezium
+        </button>
+        <span className={`label tnum ${quiet}`}>No. {PUZZLE_NUMBER}</span>
+      </header>
+
+      {game.allDone ? (
+        <AllDone streak={game.progress.streak} />
+      ) : (
+        /* One section per target. The one being played expands to hold the game; the rest
+           stay as rules you can drop onto once they have opened. */
+        <div className="flex min-h-0 flex-1 flex-col">
+          {TIERS.map((t) => {
+            const open = game.isOpen(t)
+            const won = game.progress.tiersWon[t]
+            const playing = game.tier === t
+
+            return (
+              <section
+                key={t}
+                data-playfield={playing ? '' : undefined}
+                /* flex-grow is the accordion: the open section takes the free space and the
+                   others give it back, both over the same 420ms. overflow-hidden lets the
+                   round's content be clipped while the section is still growing into it. */
+                style={{ flexGrow: playing ? 1 : 0 }}
+                /* overflow-hidden is what lets the accordion clip a growing round — but it
+                   would also clip the labels the intro lifts out onto the shape, so it only
+                   applies once the intro has handed them back. */
+                className={`flex min-h-0 shrink-0 flex-col border-b transition-[flex-grow,border-color] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  intro ? 'overflow-visible border-transparent' : 'overflow-hidden border-rule'
+                }`}
+              >
+                {playing ? (
+                  /* The open section is titled rather than tabbed, so it carries the round's
+                     standing, the controls that act on it, and now the banner that speaks
+                     for it — title and prompt read as one block, top to bottom. */
+                  <div className="shrink-0 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-baseline gap-2">
+                        <h2
+                          data-tier-label={t}
+                          className="origin-left font-body text-[1.35rem] leading-none font-bold tracking-[-0.01em] whitespace-nowrap"
+                        >
+                          {t} words
+                        </h2>
+                        {won && <span className={`text-lg text-accent ${quiet}`}>✓</span>}
+                      </div>
+
+                      <div
+                        className={`-mr-2 flex shrink-0 items-center gap-1 ${quiet}`}
+                        // Arrive after the section has finished growing, not during. Held
+                        // back entirely during the intro — a fill:both animation would pin
+                        // opacity to 1 and win against the class that hides it.
+                        style={
+                          intro
+                            ? undefined
+                            : {
+                                animation: 'fade-rise 380ms var(--ease-out-quint) both',
+                                animationDelay: '260ms',
+                              }
+                        }
+                      >
+                        <IconButton
+                          label="Undo last word"
+                          onClick={game.undo}
+                          disabled={game.round.words.length === 0}
+                        >
+                          <UndoIcon />
+                        </IconButton>
+                        <IconButton
+                          label="Restart this round"
+                          onClick={game.restart}
+                          disabled={game.round.words.length === 0}
+                        >
+                          <RestartIcon />
+                        </IconButton>
+                      </div>
+                    </div>
+
+                    <div className={quiet}>{playing && <Banner game={game} />}</div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!open}
+                    onClick={() => game.setTier(t)}
+                    aria-expanded={false}
+                    className="label flex w-full touch-manipulation items-center gap-2 py-3 text-left transition-colors duration-200 disabled:cursor-default"
+                  >
+                    <span
+                      data-tier-label={t}
+                      className={`origin-left whitespace-nowrap ${open ? 'text-ink-soft' : 'text-ink-faint'}`}
+                    >
+                      {t} words
+                    </span>
+                    {won && <span className={`text-accent ${quiet}`}>✓</span>}
+                    {!open && <LockIcon className={`text-ink-faint ${quiet}`} />}
+                    {open && !won && (
+                      // A part-played section says so, so it is obvious a chain is waiting.
+                      <span className={`ml-auto text-ink-faint ${quiet}`}>
+                        {game.rounds[t].words.length > 0
+                          ? `${game.rounds[t].words.length} down`
+                          : 'open'}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {playing && (
+                  // Keyed on the tier so opening a different section replays the entrance
+                  // rather than swapping its contents underneath you. Rendered even during
+                  // the intro so the layout — and so the labels' real resting places — is
+                  // already settled when the intro measures where to send them.
+                  <Round
+                    key={t}
+                    game={game}
+                    inputRef={inputRef}
+                    keepFocus={keepFocus}
+                    shake={shake}
+                    quiet={quiet}
+                  />
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </main>
+  )
+}
+
+type Game = ReturnType<typeof useTrapezium>
+
+function Round({
+  game,
+  inputRef,
+  keepFocus,
+  shake,
+  quiet,
+}: {
+  game: Game
+  inputRef: React.RefObject<HTMLInputElement | null>
+  keepFocus: () => void
+  shake: boolean
+  quiet: string
+}) {
+  const done = game.round.words.length
+  const left = game.tier - done
+
+  return (
+    <div className={`flex min-h-0 flex-1 flex-col pb-2 ${quiet}`}>
+      {/* Display, typing and chain are one object. Tapping anywhere raises the keyboard. */}
+      <div
+        className="relative flex min-h-0 flex-1 flex-col justify-center gap-[clamp(0.5rem,calc(var(--app-height)*0.03),1.5rem)] py-2"
+        onPointerDown={keepFocus}
+      >
+        <p className="label text-center">
+          <span className="tnum text-ink">{done}</span> done
+          {!game.round.solved && (
+            <>
+              <span className="mx-2 text-rule">·</span>
+              <span className={left === 1 ? 'text-accent' : undefined}>
+                <span className="tnum">{left}</span> to go
+              </span>
+            </>
+          )}
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            game.submitWord()
+          }}
+          style={shake ? { animation: 'reject 420ms var(--ease-out-quint) both' } : undefined}
+          key={shake ? game.error?.nonce : 'steady'}
+          className="@container"
+        >
+          <WordDisplay
+            seed={game.seed}
+            currentPos={game.round.currentPos}
+            effective={game.effective}
+            matched={game.matched}
+            preview={game.preview}
+            solved={game.round.solved}
+            justCovered={game.justCovered}
+          />
+          <input
+            ref={inputRef}
+            value={game.draft}
+            onChange={(e) => game.updateDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // Nothing of the current word is on screen, so backspace steps back into the
+              // previous one rather than doing nothing.
+              if (e.key === 'Backspace' && game.canStepBack) {
+                e.preventDefault()
+                game.undo()
+              }
+            }}
+            disabled={!game.ready || game.round.solved}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
+            enterKeyHint="go"
+            inputMode="text"
+            aria-label="Your word"
+            /* 16px keeps iOS Safari from zooming the page on focus. The text itself is
+               invisible — WordDisplay renders it. */
+            className="absolute inset-0 h-full w-full cursor-default bg-transparent text-[16px] text-transparent caret-transparent outline-none select-none"
+          />
+        </form>
+
+        <WordChain seed={game.seed} words={game.round.words} />
+
+        {game.round.solved && <NextTier game={game} />}
+      </div>
+    </div>
+  )
+}
+
+/** Sits under the chain once the round is done — the way on to the next target. */
+function NextTier({ game }: { game: Game }) {
+  const next = TIERS.find((t) => !game.progress.tiersWon[t])
+  if (!next) return null
+
+  return (
+    <div
+      className="flex justify-center"
+      style={{ animation: 'fade-rise 520ms var(--ease-out-quint) both', animationDelay: '160ms' }}
+    >
+      <button
+        type="button"
+        onClick={() => game.setTier(next)}
+        className="label touch-manipulation border-b border-ink py-1.5 text-ink transition-colors duration-200"
+      >
+        {next} words →
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The round's single line of speech — coaching, prompting, rejecting — sitting directly
+ * under the section title it belongs to. Committing a word is Enter / the keyboard's Go
+ * key, same as it always was; this strip only ever talks, it doesn't act.
+ */
+function Banner({ game }: { game: Game }) {
+  // Solved rounds have nothing left to say; the chain and the next-tier button carry it.
+  if (game.round.solved) return null
+
+  const left = game.tier - game.round.words.length
+  const finish = game.seed[game.seed.length - 1]
+
+  // At 4 words every chunk is exactly one seed letter — the pivots use up the whole seed,
+  // so there's no room for a chunk to run longer. Below that, some chunks necessarily span
+  // more than one letter, which is the one thing a new player can't guess from the display
+  // alone, so the opening line is the one place it gets spelled out.
+  const opening =
+    game.tier === 4
+      ? `Split today's word into 4 words. Start with ${game.pivot}.`
+      : `Split today's word into ${game.tier} words — a start or end can span more than one letter. Start with ${game.pivot}.`
+
+  // The prompt tracks the target it belongs to, so a 4-word round never reads like a
+  // 2-word one. Kept to a phrase — the count above already carries the arithmetic.
+  const hint =
+    game.round.words.length === 0
+      ? opening
+      : left === 1
+        ? `Last word — ${game.pivot} to ${finish}.`
+        : `${left} more, carrying on from ${game.pivot}.`
+
+  const message = game.error
+    ? {
+        key: `err-${game.error.nonce}`,
+        alert: true,
+        text: errorText(game.error.kind, {
+          word: game.error.word,
+          pivot: game.pivot,
+          reachable: game.reachable,
+          seed: game.seed,
+          used: game.round.words.length,
+          target: game.tier,
+        }),
+      }
+    : { key: `hint-${game.tier}-${left}`, alert: false, text: hint }
+
+  return (
+    <p
+      key={message.key}
+      role="status"
+      className={`mt-1 text-left font-body text-[0.8rem] leading-snug transition-colors duration-300 ${
+        message.alert ? 'text-accent' : 'text-ink-soft'
+      }`}
+      style={{ animation: 'fade-in 300ms var(--ease-out-quint) both' }}
+    >
+      {message.text}
+    </p>
+  )
+}
+
+function IconButton({
+  children,
+  label,
+  onClick,
+  disabled,
+  className = '',
+}: {
+  children: React.ReactNode
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={`flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center text-ink-soft transition-opacity duration-200 disabled:opacity-25 ${className}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Placeholder. The share card lands here. */
+function AllDone({ streak }: { streak: number }) {
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 text-center"
+      style={{ animation: 'fade-rise 620ms var(--ease-out-quint) both' }}
+    >
+      <p className="font-display text-[clamp(2rem,10vw,3rem)] leading-none">
+        All three <span className="text-accent">crossed</span>
+      </p>
+      <p className="label">
+        Streak <span className="tnum text-ink">{streak}</span>
+      </p>
+      <p className="max-w-[24ch] font-body text-sm text-ink-soft italic">
+        The share card goes here.
+      </p>
+    </div>
+  )
+}
