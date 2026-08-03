@@ -1,4 +1,4 @@
-export const SEED = 'PLANT'
+export const SEED = 'STONE'
 
 export const MIN_WORD_LENGTH = 2
 export const MAX_WORD_LENGTH = 12
