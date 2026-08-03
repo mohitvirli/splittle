@@ -71,6 +71,7 @@ function placeThenFade(el: HTMLElement | null, transform: string, delay = 0, col
 
 interface Props {
   onDone: () => void
+  onOpenHelp: () => void
 }
 
 /**
@@ -83,7 +84,7 @@ interface Props {
  * The dark trapezium is the one piece that is genuinely the intro's own, and it sits behind
  * the game (z-5, under main's z-10) so the labels read on top of it without any shuffling.
  */
-export function Intro({ onDone }: Props) {
+export function Intro({ onDone, onOpenHelp }: Props) {
   const [phase, setPhase] = useState<Phase>('title')
   const anchorRefs = useRef<(SVGTextElement | null)[]>([])
   const bandRef = useRef<SVGPolygonElement>(null)
@@ -277,6 +278,19 @@ export function Intro({ onDone }: Props) {
             }}
           >
             Play →
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenHelp}
+            aria-label="Open help"
+            className="label absolute left-1/2 top-[calc(36vh+6.2rem)] -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+            style={{
+              animation: 'fade-in 500ms var(--ease-out-quint) both',
+              animationDelay: '420ms',
+            }}
+          >
+            How to play
           </button>
         </div>
       )}

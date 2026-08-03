@@ -54,9 +54,10 @@ interface PlayingProps {
    */
   intro: boolean
   onHome: () => void
+  onOpenHelp: () => void
 }
 
-export function Playing({ active, intro, onHome }: PlayingProps) {
+export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
   const game = useTrapezium()
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -96,7 +97,17 @@ export function Playing({ active, intro, onHome }: PlayingProps) {
         >
           Trapezium
         </button>
-        <span className={`label tnum ${quiet}`}>No. {PUZZLE_NUMBER}</span>
+        <div className={`flex items-center gap-3 ${quiet}`}>
+          <button
+            type="button"
+            onClick={onOpenHelp}
+            aria-label="Open help"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-rule text-sm font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink"
+          >
+            ?
+          </button>
+          <span className="label tnum">No. {PUZZLE_NUMBER}</span>
+        </div>
       </header>
 
       {game.allDone ? (
