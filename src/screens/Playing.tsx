@@ -95,7 +95,7 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
           data-masthead
           className="origin-center touch-manipulation font-display text-xl tracking-[0.03em]"
         >
-          Trapezium
+          Splittle
         </button>
         <div className={`flex items-center gap-3 ${quiet}`}>
           <button
