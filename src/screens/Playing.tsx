@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
-import { LockIcon, RestartIcon, UndoIcon } from '../components/icons'
+import { HelpIcon, LockIcon, RestartIcon, UndoIcon } from '../components/icons'
 import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
 import { motion } from '../game/motion'
@@ -165,19 +165,14 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
           onClick={onHome}
           aria-label="Back to the title"
           data-masthead
-          className="origin-center touch-manipulation font-display text-xl tracking-[0.03em]"
+          className="origin-center touch-manipulation font-melodrama text-xl font-bold tracking-[0.03em]"
         >
-          Splittle
+          Splittle.
         </button>
         <div className={`flex items-center gap-3 ${quiet}`}>
-          <button
-            type="button"
-            onClick={onOpenHelp}
-            aria-label="Open help"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-rule text-sm font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink"
-          >
-            ?
-          </button>
+          <IconButton label="Open help" onClick={onOpenHelp}>
+            <HelpIcon />
+          </IconButton>
           <span className="label tnum">No. {PUZZLE_NUMBER}</span>
         </div>
       </header>

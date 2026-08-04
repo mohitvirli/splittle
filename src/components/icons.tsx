@@ -61,6 +61,26 @@ export function PlayIcon({ className = '' }: IconProps) {
   )
 }
 
+/** Ask how the round works. */
+export function HelpIcon({ className = '' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`${base} ${className}`}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.3 9.4a2.7 2.7 0 0 1 5.2.9c0 1.8-2.5 2-2.5 3.7" />
+      <path d="M12 17.3v.1" />
+    </svg>
+  )
+}
+
 /** A closed section that has not been reached yet. */
 export function LockIcon({ className = '' }: IconProps) {
   return (

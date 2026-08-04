@@ -118,12 +118,19 @@ export function Intro({ onDone, onOpenHelp }: Props) {
 
   return (
     <div ref={root} className="fixed inset-0 z-30">
+      <p
+        data-intro-action
+        className="absolute top-[calc(36vh+3rem)] left-1/2 -translate-x-1/2 whitespace-nowrap font-body text-sm text-ink-soft"
+      >
+        Split the word into a chain
+      </p>
+
       <button
         type="button"
         onClick={start}
         autoFocus
         data-intro-action
-        className="label absolute top-[calc(36vh+3.45rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+        className="label absolute top-[calc(36vh+5.25rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
       >
         Play →
       </button>
@@ -133,7 +140,7 @@ export function Intro({ onDone, onOpenHelp }: Props) {
         onClick={onOpenHelp}
         aria-label="Open help"
         data-intro-action
-        className="label absolute top-[calc(36vh+6.2rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+        className="label absolute top-[calc(36vh+8rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
       >
         How to play
       </button>

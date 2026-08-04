@@ -1,10 +1,43 @@
 @import 'tailwindcss';
 
+/* Self-hosted rather than fetched from Fontshare's CDN at runtime — see
+   src/assets/fonts/melodrama. */
+@font-face {
+  font-family: 'Melodrama';
+  src: url('./assets/fonts/melodrama/melodrama-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Melodrama';
+  src: url('./assets/fonts/melodrama/melodrama-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Melodrama';
+  src: url('./assets/fonts/melodrama/melodrama-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Melodrama';
+  src: url('./assets/fonts/melodrama/melodrama-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   /* One family throughout. Both names are kept so a display face can be reintroduced
      without touching every component. */
   --font-display: 'Satoshi', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-body: 'Satoshi', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* The wordmark's own face — set apart from the sans everything else reads in. */
+  --font-melodrama: 'Melodrama', ui-serif, Georgia, serif;
 
   /* Flat off-white beige. Nothing here is a pure neutral. */
   --color-paper: oklch(0.975 0.018 88);
