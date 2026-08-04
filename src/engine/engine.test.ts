@@ -11,16 +11,19 @@ import {
   undoLast,
   withPivot,
 } from './engine'
-import { SEED } from './types'
 import type { Dict, RoundState } from './types'
 import { getDictionary } from '../dictionary/dictionary'
 
 const dict: Dict = (word) => getDictionary().has(word)
 
+// This suite's own fixture seed — independent of the app's live daily SEED (types.ts),
+// which changes as puzzles rotate. Every word below was chosen to solve PLANT specifically.
+const PLANT = 'PLANT'
+
 /** [chunkEnd, word, expected landing] */
 type Move = [number, string, number]
 
-function walk(moves: Move[], d: Dict = dict, seed = SEED): RoundState {
+function walk(moves: Move[], d: Dict = dict, seed = PLANT): RoundState {
   let state = createRound(seed)
   for (const [chunkEnd, word, expected] of moves) {
     const result = submit(state, chunkEnd, word, d)
@@ -90,7 +93,7 @@ describe('MIN_WORD_LENGTH = 2', () => {
 
   it('does not let a word skip a seed letter — AT cannot reach T from A', () => {
     // The suffix from chunkEnd 2 is seed[3..4] = "NT". AT ends in "T" and lands nowhere.
-    let state = createRound()
+    let state = createRound(PLANT)
     state = applyResult(state, submit(state, 1, 'PLASMA', dict))
     expect(state.currentPos).toBe(2)
     expect(submit(state, 2, 'AT', dict)).toEqual({ kind: 'NO_LANDING' })
@@ -99,30 +102,30 @@ describe('MIN_WORD_LENGTH = 2', () => {
 
 describe('failure modes', () => {
   it('NOT_A_WORD for a non-word', () => {
-    expect(submit(createRound(), 0, 'ZZZZZ', dict)).toEqual({ kind: 'NOT_A_WORD' })
+    expect(submit(createRound(PLANT), 0, 'ZZZZZ', dict)).toEqual({ kind: 'NOT_A_WORD' })
   })
 
   it('NO_LANDING for a real word that ends nowhere on the remaining seed', () => {
-    expect(submit(createRound(), 1, 'PLASTIC', dict)).toEqual({ kind: 'NO_LANDING' })
+    expect(submit(createRound(PLANT), 1, 'PLASTIC', dict)).toEqual({ kind: 'NO_LANDING' })
   })
 
   it('checks the dictionary before anything structural', () => {
     // Wrong prefix AND not a word — NOT_A_WORD wins, per the spec's check order.
-    expect(submit(createRound(), 0, 'QQQQ', dict)).toEqual({ kind: 'NOT_A_WORD' })
+    expect(submit(createRound(PLANT), 0, 'QQQQ', dict)).toEqual({ kind: 'NOT_A_WORD' })
   })
 
   it('BAD_PREFIX when the word does not start with the chunk', () => {
-    expect(submit(createRound(), 1, 'PEARL', dict)).toEqual({ kind: 'BAD_PREFIX' })
+    expect(submit(createRound(PLANT), 1, 'PEARL', dict)).toEqual({ kind: 'BAD_PREFIX' })
   })
 
   it('TOO_SHORT when the word is not longer than its chunk', () => {
-    const state = createRound()
+    const state = createRound(PLANT)
     // "PLAN" as the whole chunk (chunkEnd 3) with the word PLAN: 4 letters, 4-letter chunk.
     expect(submit(state, 3, 'PLAN', dict)).toEqual({ kind: 'TOO_SHORT' })
   })
 
   it('ALREADY_USED for a word already in the chain', () => {
-    const played = play(createRound(), 0, 'PEARL', dict)
+    const played = play(createRound(PLANT), 0, 'PEARL', dict)
     // Roll the cursor back but keep the word on the chain, so PEARL is otherwise legal again.
     const state: RoundState = { ...played.state, currentPos: 0 }
     expect(submit(state, 0, 'PEARL', dict)).toEqual({ kind: 'ALREADY_USED' })
@@ -131,11 +134,11 @@ describe('failure modes', () => {
   })
 
   it('CONTAINS_SEED for a word containing PLANT', () => {
-    expect(submit(createRound(), 0, 'PLANTER', dict)).toEqual({ kind: 'CONTAINS_SEED' })
+    expect(submit(createRound(PLANT), 0, 'PLANTER', dict)).toEqual({ kind: 'CONTAINS_SEED' })
   })
 
   it('CONTAINS_SEED for the seed itself', () => {
-    expect(submit(createRound(), 0, 'PLANT', dict)).toEqual({ kind: 'CONTAINS_SEED' })
+    expect(submit(createRound(PLANT), 0, 'PLANT', dict)).toEqual({ kind: 'CONTAINS_SEED' })
   })
 })
 
@@ -165,7 +168,7 @@ describe('furthest landing wins', () => {
 
 describe('resolve — the engine picks the chunk', () => {
   /** Walk a round by word alone, the way the screen does. */
-  function walkWords(words: string[], seed = SEED) {
+  function walkWords(words: string[], seed = PLANT) {
     let state = createRound(seed)
     const landings: number[] = []
     for (const word of words) {
@@ -178,16 +181,16 @@ describe('resolve — the engine picks the chunk', () => {
   }
 
   it('prefers PL over the longer PLA match, which lands nowhere', () => {
-    const { chunkEnd, result } = resolve(createRound(), 'PLASMA', dict)
+    const { chunkEnd, result } = resolve(createRound(PLANT), 'PLASMA', dict)
     expect(chunkEnd).toBe(1)
     expect(result).toMatchObject({ kind: 'LANDED', word: { landedAt: 2 } })
     // The longer match really is a dead end, which is why the search cannot stop early.
-    expect(submit(createRound(), 2, 'PLASMA', dict)).toEqual({ kind: 'NO_LANDING' })
+    expect(submit(createRound(PLANT), 2, 'PLASMA', dict)).toEqual({ kind: 'NO_LANDING' })
   })
 
   it('takes the furthest landing across every viable chunk', () => {
     // From A: chunk A reaches T via NT. Nothing reaches further.
-    let state = createRound()
+    let state = createRound(PLANT)
     state = applyResult(state, resolve(state, 'PLASMA', dict).result)
     const { chunkEnd, result } = resolve(state, 'ACCOUNT', dict)
     expect(chunkEnd).toBe(2)
@@ -196,11 +199,11 @@ describe('resolve — the engine picks the chunk', () => {
 
   it('breaks ties toward the shortest chunk', () => {
     // PLAN reaches N from P (+LAN), PL (+AN) and PLA (+N) alike. The shortest wins.
-    const { chunkEnd, result } = resolve(createRound(), 'PLAN', dict)
+    const { chunkEnd, result } = resolve(createRound(PLANT), 'PLAN', dict)
     expect(chunkEnd).toBe(0)
     expect(result).toMatchObject({ kind: 'LANDED', word: { landedAt: 3 } })
     for (const alternative of [1, 2]) {
-      expect(submit(createRound(), alternative, 'PLAN', dict)).toMatchObject({
+      expect(submit(createRound(PLANT), alternative, 'PLAN', dict)).toMatchObject({
         kind: 'LANDED',
         word: { landedAt: 3 },
       })
@@ -216,17 +219,17 @@ describe('resolve — the engine picks the chunk', () => {
   })
 
   it('reports the failure from the minimal chunk', () => {
-    expect(resolve(createRound(), 'PLASTIC', dict).result).toEqual({ kind: 'NO_LANDING' })
-    expect(resolve(createRound(), 'ZZZZZ', dict).result).toEqual({ kind: 'NOT_A_WORD' })
-    expect(resolve(createRound(), 'APRON', dict).result).toEqual({ kind: 'BAD_PREFIX' })
-    expect(resolve(createRound(), 'PLANTER', dict).result).toEqual({ kind: 'CONTAINS_SEED' })
+    expect(resolve(createRound(PLANT), 'PLASTIC', dict).result).toEqual({ kind: 'NO_LANDING' })
+    expect(resolve(createRound(PLANT), 'ZZZZZ', dict).result).toEqual({ kind: 'NOT_A_WORD' })
+    expect(resolve(createRound(PLANT), 'APRON', dict).result).toEqual({ kind: 'BAD_PREFIX' })
+    expect(resolve(createRound(PLANT), 'PLANTER', dict).result).toEqual({ kind: 'CONTAINS_SEED' })
   })
 })
 
 describe('judge — the tier target is an exact word count', () => {
   /** Play words under a target, returning the state and the last result. */
   function run(target: number, words: string[]) {
-    let state = createRound()
+    let state = createRound(PLANT)
     let last = judge(state, words[0], dict, target)
     for (const word of words) {
       last = judge(state, word, dict, target)
@@ -283,14 +286,14 @@ describe('judge — the tier target is an exact word count', () => {
   })
 
   it('reports landing failures ahead of tier rules', () => {
-    expect(judge(createRound(), 'ZZZZZ', dict, 4).result).toEqual({ kind: 'NOT_A_WORD' })
-    expect(judge(createRound(), 'PLASTIC', dict, 4).result).toEqual({ kind: 'NO_LANDING' })
+    expect(judge(createRound(PLANT), 'ZZZZZ', dict, 4).result).toEqual({ kind: 'NOT_A_WORD' })
+    expect(judge(createRound(PLANT), 'PLASTIC', dict, 4).result).toEqual({ kind: 'NO_LANDING' })
   })
 })
 
 describe('withPivot — the pivot is assumed, not demanded', () => {
   const afterPlasma = () =>
-    applyResult(createRound(), resolve(createRound(), 'PLASMA', dict).result)
+    applyResult(createRound(PLANT), resolve(createRound(PLANT), 'PLASMA', dict).result)
 
   it('accepts the word with or without its leading pivot letter', () => {
     const state = afterPlasma()
@@ -315,14 +318,14 @@ describe('withPivot — the pivot is assumed, not demanded', () => {
   })
 
   it('is a no-op on an empty draft, and normalises case', () => {
-    expect(withPivot(createRound(), '')).toBe('')
-    expect(withPivot(createRound(), '  earl ')).toBe('PEARL')
+    expect(withPivot(createRound(PLANT), '')).toBe('')
+    expect(withPivot(createRound(PLANT), '  earl ')).toBe('PEARL')
   })
 })
 
 describe('seedMatchLength — how far the gap slides', () => {
   it('tracks the typed word along the seed', () => {
-    const start = createRound()
+    const start = createRound(PLANT)
     expect(seedMatchLength(start, '')).toBe(0)
     expect(seedMatchLength(start, 'P')).toBe(1)
     expect(seedMatchLength(start, 'PL')).toBe(2)
@@ -333,11 +336,11 @@ describe('seedMatchLength — how far the gap slides', () => {
 
   it('never runs past the last selectable letter', () => {
     // A chunk covering the whole seed leaves nothing to land on.
-    expect(seedMatchLength(createRound(), 'PLANT')).toBe(4)
+    expect(seedMatchLength(createRound(PLANT), 'PLANT')).toBe(4)
   })
 
   it('measures from the cursor, not from the start of the seed', () => {
-    const state = applyResult(createRound(), resolve(createRound(), 'PLASMA', dict).result)
+    const state = applyResult(createRound(PLANT), resolve(createRound(PLANT), 'PLASMA', dict).result)
     expect(state.currentPos).toBe(2)
     expect(seedMatchLength(state, 'APRON')).toBe(1)
     expect(seedMatchLength(state, 'AN')).toBe(2)
@@ -346,12 +349,12 @@ describe('seedMatchLength — how far the gap slides', () => {
 
 describe('state transitions', () => {
   it('leaves state untouched on a failed submit', () => {
-    const state = createRound()
+    const state = createRound(PLANT)
     expect(applyResult(state, submit(state, 0, 'ZZZZZ', dict))).toBe(state)
   })
 
   it('undo rolls the cursor back to where the word started', () => {
-    const first = play(createRound(), 1, 'PLASMA', dict)
+    const first = play(createRound(PLANT), 1, 'PLASMA', dict)
     const second = play(first.state, 2, 'ACCOUNT', dict)
     expect(second.state.solved).toBe(true)
 
@@ -360,7 +363,7 @@ describe('state transitions', () => {
     expect(back.solved).toBe(false)
     expect(back.words).toHaveLength(1)
 
-    expect(undoLast(createRound()).words).toHaveLength(0)
+    expect(undoLast(createRound(PLANT)).words).toHaveLength(0)
   })
 
   it('refuses to accept a word once the round is solved', () => {
@@ -372,7 +375,7 @@ describe('state transitions', () => {
   })
 
   it('refuses a chunk that starts behind the cursor', () => {
-    const state = play(createRound(), 1, 'PLASMA', dict).state
+    const state = play(createRound(PLANT), 1, 'PLASMA', dict).state
     expect(() => submit(state, 1, 'LAVA', dict)).toThrow(/out of range/)
   })
 })
