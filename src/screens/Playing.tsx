@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
+import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { LockIcon, RestartIcon, UndoIcon } from '../components/icons'
 import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
+import { motion } from '../game/motion'
 import { PUZZLE_NUMBER, TIERS } from '../game/storage'
 import { useTrapezium } from '../game/useTrapezium'
 import type { SubmitFailure } from '../engine/types'
+
+gsap.registerPlugin(useGSAP)
 
 const listLetters = (letters: string): string => {
   const parts = letters.split('')
@@ -60,6 +65,15 @@ interface PlayingProps {
 export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
   const game = useTrapezium()
   const inputRef = useRef<HTMLInputElement>(null)
+  const root = useRef<HTMLElement>(null)
+  /**
+   * The last state the screen was actually animated for. Null means the first pass, which
+   * has to arrive at its opening state without moving — there is nothing to move from yet.
+   * A plain "have I run before" flag is not enough: StrictMode mounts, reverts and mounts
+   * again, and a flag burnt on the first pass leaves the second one animating the whole
+   * game out on load. Comparing values instead makes the repeated pass a no-op.
+   */
+  const shown = useRef<boolean | null>(null)
 
   // The display IS the input, so the field must hold focus for the keyboard to stay up.
   const keepFocus = useCallback(() => {
@@ -74,15 +88,73 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
 
   const shake = game.error?.kind === 'NOT_A_WORD'
   /**
-   * Everything the intro is not carrying holds back until the shape has finished opening.
-   * pointer-events-none matters as much as the opacity — without it, buttons underneath
-   * the intro (undo, restart, play again, the collapsed tier rows) stay clickable while
+   * Everything the intro is not carrying holds back until the landing has handed over.
+   * Visibility is GSAP's now — js-chrome is only the handle it picks these nodes up by —
+   * but pointer-events-none still matters as much: without it, buttons underneath the
+   * intro (undo, restart, play again, the collapsed tier rows) stay clickable while
    * invisible, so a tap that looks like it hit the intro can silently act on the game.
    */
-  const quiet = `transition-opacity duration-500 ${intro ? 'pointer-events-none opacity-0' : 'opacity-100'}`
+  const quiet = `js-chrome ${intro ? 'pointer-events-none' : ''}`
+
+  /**
+   * The screen opens itself once the landing lets go: the tier titles lean in from the
+   * margin, then everything the intro was holding back rises after them. On the way back
+   * out it is one fade — the title is already flying home over the top of it, and a
+   * staggered exit underneath that reads as two animations arguing.
+   */
+  useGSAP(
+    () => {
+      const chrome = gsap.utils.toArray<HTMLElement>('.js-chrome')
+      const labels = gsap.utils.toArray<HTMLElement>('[data-tier-label]')
+      // Only a real change is worth animating: the opening pass, and StrictMode's repeat of
+      // it, both land on their state instantly.
+      const changed = shown.current !== null && shown.current !== intro
+      const t = changed ? motion() : 0
+      shown.current = intro
+
+      if (intro) {
+        gsap.to(chrome, { autoAlpha: 0, duration: 0.3 * t, ease: 'power2.in' })
+      } else {
+        /* fromTo, not from: these nodes are hidden right now — the intro put them that way
+           — so anything reading its finish off the element would animate them to nothing. */
+        gsap
+          .timeline({ defaults: { ease: 'power3.out' } })
+          .fromTo(
+            labels,
+            { autoAlpha: 0, x: -14 },
+            {
+              autoAlpha: 1,
+              x: 0,
+              duration: 0.55 * t,
+              stagger: 0.08 * t,
+              clearProps: 'transform,opacity,visibility',
+            },
+            0,
+          )
+          .fromTo(
+            chrome,
+            { autoAlpha: 0, y: 12 },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 0.5 * t,
+              stagger: 0.045 * t,
+              // Hands the nodes back to the stylesheet once they have arrived, rather than
+              // leaving an identity transform and an inline opacity on half the screen.
+              clearProps: 'transform,opacity,visibility',
+            },
+            0.12 * t,
+          )
+      }
+    },
+    { dependencies: [intro], scope: root, revertOnUpdate: true },
+  )
 
   return (
-    <main className="relative z-10 mx-auto flex h-[var(--app-height)] w-full max-w-[30rem] flex-col px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <main
+      ref={root}
+      className="relative z-10 mx-auto flex h-[var(--app-height)] w-full max-w-[30rem] flex-col px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+    >
       <header
         className={`flex shrink-0 items-baseline justify-between border-b pb-1.5 transition-colors duration-500 ${
           intro ? 'border-transparent' : 'border-ink'
@@ -159,20 +231,10 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
                         {won && <span className={`text-lg text-accent ${quiet}`}>✓</span>}
                       </div>
 
-                      <div
-                        className={`-mr-2 flex shrink-0 items-center gap-1 ${quiet}`}
-                        // Arrive after the section has finished growing, not during. Held
-                        // back entirely during the intro — a fill:both animation would pin
-                        // opacity to 1 and win against the class that hides it.
-                        style={
-                          intro
-                            ? undefined
-                            : {
-                                animation: 'fade-rise 380ms var(--ease-out-quint) both',
-                                animationDelay: '260ms',
-                              }
-                        }
-                      >
+                      {/* Arrives with the rest of the chrome. A CSS fade-rise used to run
+                          here as well, and a fill:both animation pins opacity to 1 — it
+                          would win against anything holding these back. */}
+                      <div className={`-mr-2 flex shrink-0 items-center gap-1 ${quiet}`}>
                         <IconButton
                           label="Undo last word"
                           onClick={game.undo}

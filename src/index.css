@@ -144,45 +144,6 @@ body {
   }
 }
 
-/* ── The landing sequence ───────────────────────────────────────────────────
-   Wordmark first, then the three targets stack into the shape the game is named
-   after, then the widest one opens into the round. */
-@keyframes title-in {
-  from {
-    transform: translateY(0.4em);
-    opacity: 0;
-    letter-spacing: 0.12em;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-    letter-spacing: 0.01em;
-  }
-}
-
-/* Bands fade in place rather than sliding — the shape has to stay whole while it arrives,
-   and any movement would pull its sloping edges apart. */
-@keyframes band-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* The shape takes the screen as the round opens behind it. */
-@keyframes shape-open {
-  from {
-    transform: scale(1);
-    opacity: 1;
-  }
-  to {
-    transform: scale(1.16);
-    opacity: 0;
-  }
-}
-
 @keyframes fade-rise {
   from {
     transform: translateY(0.55rem);
