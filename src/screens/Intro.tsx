@@ -120,7 +120,7 @@ export function Intro({ onDone, onOpenHelp }: Props) {
     <div ref={root} className="fixed inset-0 z-30">
       <p
         data-intro-action
-        className="absolute top-[calc(36vh+3rem)] left-1/2 -translate-x-1/2 whitespace-nowrap font-body text-sm text-ink-soft"
+        className="absolute top-[calc(36vh+2.5rem)] left-1/2 -translate-x-1/2 whitespace-nowrap font-body text-sm text-ink-soft"
       >
         Split the word into a chain
       </p>
