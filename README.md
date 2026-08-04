@@ -1,32 +1,45 @@
-# React + TypeScript + Vite
+# Splittle
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A daily word chain puzzle. Split today's seed word into a chain of real words that
+walk across its letters — finish it in exactly 4, 3, or 2 words.
 
-Currently, two official plugins are available:
+## How it works
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Each round has a seed (today's is `STONE`) and a target word count. Starting from the
+first letter, you type a word that starts where the last one landed and ends
+somewhere on the remaining seed letters — that landing point becomes the start of the
+next word. The chain has to use up the whole seed in exactly the target number of
+words, no more, no fewer.
 
-## React Compiler
+Three tiers — 4, 3, and 2 words — share the same seed but demand a shorter chain each
+time, so the same puzzle gets harder as the word budget shrinks.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Stack
 
-## Expanding the Oxlint configuration
+- [React](https://react.dev) + [TypeScript](https://www.typescriptlang.org), built with [Vite](https://vite.dev)
+- [Tailwind CSS](https://tailwindcss.com) for styling
+- [GSAP](https://gsap.com) for the intro, screen transitions, and help dialog animation
+- [Vitest](https://vitest.dev) for the engine's test suite
+- [Oxlint](https://oxc.rs) for linting
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+The puzzle engine (`src/engine`) is a pure, dependency-free module — it takes a seed,
+a dictionary lookup, and a word, and returns where it lands or why it doesn't. The
+dictionary itself (`src/dictionary`) is built from `an-array-of-english-words` at
+startup, indexed by prefix.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## Development
+
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Other scripts:
+
+```bash
+npm run build      # typecheck + production build
+npm run lint        # oxlint
+npm test            # run the engine test suite once
+npm run test:watch  # run it in watch mode
+npm run preview      # preview the production build
+```
