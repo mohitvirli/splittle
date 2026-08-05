@@ -126,6 +126,13 @@ export function useTrapezium() {
   /** Nothing of the current word has been typed, so backspace steps back a word instead. */
   const canStepBack = round.words.length > 0 && draft.length === 0
 
+  /**
+   * One word left, so the next one has to reach the seed's last letter — the same condition
+   * `judge` rejects as MUST_FINISH. The display leans on it to bracket the whole of what is
+   * left rather than only the nearest letter it could land on.
+   */
+  const mustFinish = !round.solved && round.words.length + 1 === tier
+
   const restart = useCallback(() => {
     setRound(createRound(puzzle.seed))
     setDraft('')
@@ -239,6 +246,7 @@ export function useTrapezium() {
     pivot,
     matched,
     preview,
+    mustFinish,
     canStepBack,
     draft,
     effective,

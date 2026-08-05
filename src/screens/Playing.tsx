@@ -364,6 +364,7 @@ function Round({
             effective={game.effective}
             matched={game.matched}
             preview={game.preview}
+            mustFinish={game.mustFinish}
             solved={game.round.solved}
             justCovered={game.justCovered}
           />

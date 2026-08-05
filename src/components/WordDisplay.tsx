@@ -7,6 +7,8 @@ interface Props {
   matched: number
   /** How the word would land, or null. Also carries the chunk boundary. */
   preview: { chunkEnd: number; landedAt: number } | null
+  /** The round's last word, so the only landing left is the seed's final letter. */
+  mustFinish: boolean
   solved: boolean
   justCovered: { indices: number[]; nonce: number } | null
 }
@@ -29,6 +31,7 @@ export function WordDisplay({
   effective,
   matched,
   preview,
+  mustFinish,
   solved,
   justCovered,
 }: Props) {
@@ -54,16 +57,28 @@ export function WordDisplay({
   const mine = effective.slice(headLen, effective.length - tailLen)
   const tail = tailLen > 0 ? effective.slice(effective.length - tailLen) : ''
 
-  // Until the word lands the box keeps reaching for the nearest letter it could land on,
-  // so the shape of the move is on screen the whole way through: P_L becomes P OO L, and
-  // when POOL lands that same L is simply the real ending. The blank only stands in while
-  // the player has contributed nothing yet.
+  // Until the word lands the box keeps reaching for the letter it could land on, so the
+  // shape of the move is on screen the whole way through: P_L becomes P OO L, and when POOL
+  // lands that same L is simply the real ending. The blank only stands in while the player
+  // has contributed nothing yet.
   const headEnd = currentPos + headLen - 1
   const showTarget = !lands && !solved
   const blank = showTarget && mine.length === 0
-  const targetIndex = Math.min(headEnd + 1, last)
 
-  const boxEnd = solved ? last : lands ? preview.landedAt : targetIndex
+  // Normally that is the nearest letter — a word only has to reach the next one. On the
+  // round's last word the only landing the engine will take is the seed's final letter, so
+  // the box reaches all the way there instead, and everything in between comes inside it.
+  // On CLEAN after CALL and LIVE, that is [E _ A _ N] rather than [E _ A] N.
+  const targetEnd = mustFinish ? last : Math.min(headEnd + 1, last)
+  const targets = showTarget ? seed.slice(headEnd + 1, targetEnd + 1) : ''
+
+  // Where the split could still fall. The word is chunk + the player's letters + the seed
+  // letters it comes back down on, and the chunk can end on any of the letters shown, so
+  // every one of them but the last has a slot after it — until a letter of the player's own
+  // pins the chunk to the head, and the rest of the seed closes up behind it.
+  const gaps = blank ? Math.max(targets.length - 1, 0) : 0
+
+  const boxEnd = solved ? last : lands ? preview.landedAt : targetEnd
   const spent = solved ? '' : seed.slice(0, currentPos)
   const ahead = solved ? '' : seed.slice(boxEnd + 1)
 
@@ -76,7 +91,9 @@ export function WordDisplay({
     (active ? 0 : 0.8) +
     (solved
       ? seed.length
-      : head.length + (blank ? 0.7 : mine.length) + (showTarget ? 1 : tail.length))
+      : head.length +
+        (blank ? 0.7 : mine.length) +
+        (showTarget ? targets.length + gaps * 0.7 : tail.length))
   const cells = spent.length + boxCells + ahead.length
   const widthInEm = (cells * 0.78 + 0.34) * 1.05
   // Height is measured against the *visible* viewport, not the layout one — with the
@@ -103,6 +120,24 @@ export function WordDisplay({
       </span>
     )
   }
+
+  /**
+   * A place the player's letters can go, at its own natural width rather than a letter cell.
+   *
+   * The live one is the gap right after the letters the word is running along — the next
+   * keystroke lands there — and nothing else on the screen is asking to be typed into, so it
+   * blinks like a caret. The others are the further-out places the split could still fall,
+   * which are worth showing but not worth competing with, so they sit still and faint.
+   */
+  const slot = (key: string, live: boolean) => (
+    <span
+      key={key}
+      className={`block px-[0.04em] ${live ? mineTone : 'text-ink-faint'}`}
+      style={live ? { animation: 'caret-blink 1.1s steps(1, end) infinite' } : undefined}
+    >
+      _
+    </span>
+  )
 
   /**
    * Decorative — the rectangle says the same thing to a screen reader that these do.
@@ -151,14 +186,7 @@ export function WordDisplay({
               .map((char, i) => letter(char, `h${i}`, seedTone, currentPos + i))}
 
         {blank ? (
-          /* The blank, at its own natural width rather than a letter cell. Nothing else on
-             the screen is asking to be typed into, so it blinks like a caret. */
-          <span
-            className={`block px-[0.04em] ${mineTone}`}
-            style={{ animation: 'caret-blink 1.1s steps(1, end) infinite' }}
-          >
-            _
-          </span>
+          slot('blank', true)
         ) : (
           mine.length > 0 && (
             // Positioned, not padded: a border on this wrapper would lift the player's
@@ -176,7 +204,12 @@ export function WordDisplay({
         )}
 
         {showTarget
-          ? letter(seed[targetIndex], 'target', seedTone, targetIndex)
+          ? targets.split('').flatMap((char, i) => {
+              const index = headEnd + 1 + i
+              const cell = letter(char, `t${i}`, seedTone, index)
+              // No slot after the final letter — the word has to end on it.
+              return i < gaps ? [cell, slot(`g${i}`, false)] : [cell]
+            })
           : tail.split('').map((char, i) => letter(char, `t${i}`, seedTone))}
 
         {bracket(']')}
