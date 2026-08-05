@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { HelpIcon, LockIcon, RestartIcon, UndoIcon } from '../components/icons'
@@ -6,6 +6,8 @@ import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
 import { motion } from '../game/motion'
 import { TIERS } from '../game/storage'
+import type { Chains } from '../game/storage'
+import { mask, shareText, weld } from '../game/ribbon'
 import { useTrapezium } from '../game/useTrapezium'
 import type { SubmitFailure } from '../engine/types'
 
@@ -187,7 +189,12 @@ export function Playing({ active, intro, inputRef, onHome, onOpenHelp }: Playing
         // the masthead showed the results screen and the intro's title/shape stacked on
         // top of each other, since this branch was never told to make way.
         <div className={`flex min-h-0 flex-1 flex-col ${quiet}`}>
-          <AllDone streak={game.progress.streak} onPlayAgain={game.playAgain} />
+          <AllDone
+            streak={game.progress.streak}
+            puzzleNo={game.puzzleNo}
+            chains={game.progress.chains}
+            onPlayAgain={game.playAgain}
+          />
         </div>
       ) : (
         /* One section per target. The one being played expands to hold the game; the rest
@@ -517,7 +524,115 @@ function IconButton({
 }
 
 /** Placeholder. The share card lands here. */
-function AllDone({ streak, onPlayAgain }: { streak: number; onPlayAgain: () => void }) {
+/**
+ * The card.
+ *
+ * Each row is one tier's chain welded into a single word — every word starts on the letter the
+ * one before it landed on, so the joins are one letter deep and the whole chain reads as one
+ * ribbon. Masked, the seed's own letters are all that survive, which is the puzzle stated as a
+ * picture: CLEAN stretched across a chain the reader has to make themselves.
+ *
+ * Masked is what leaves. The unmasked ribbon is the answer — CONTROLEARN is CONTROL and LEARN
+ * to anyone who looks at it twice — so revealing it is a deliberate tap, and only then does
+ * the share carry it.
+ */
+function ShareCard({ puzzleNo, chains }: { puzzleNo: number; chains: Chains }) {
+  const [revealed, setRevealed] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [fallback, setFallback] = useState<string | null>(null)
+
+  const rows = TIERS.map((tier) => {
+    const words = chains[tier]
+    if (!words || words.length === 0) return null
+    return { tier, ribbon: revealed ? weld(words) : mask(words) }
+  }).filter((row) => row !== null)
+
+  const share = useCallback(async () => {
+    const text = shareText(puzzleNo, chains, revealed)
+    try {
+      // The share sheet where there is one. A cancelled sheet rejects, and falling through to
+      // the clipboard would then copy something nobody asked for — hence the two catches.
+      if (navigator.share) {
+        await navigator.share({ text })
+        return
+      }
+    } catch {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    } catch {
+      // A denied clipboard is the one failure the player would otherwise experience as the
+      // button doing nothing at all. Put the text on screen, ready to select, and let them
+      // take it by hand.
+      setFallback(text)
+    }
+  }, [puzzleNo, chains, revealed])
+
+  useEffect(() => {
+    if (!copied) return
+    const id = window.setTimeout(() => setCopied(false), 2000)
+    return () => window.clearTimeout(id)
+  }, [copied])
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-1 font-display text-[clamp(0.8rem,3.6vw,1.05rem)] leading-tight tracking-[0.08em]">
+        {rows.map((row) => (
+          <span key={row.tier} className="whitespace-nowrap">
+            {row.ribbon}
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            setRevealed((current) => !current)
+            setCopied(false)
+            setFallback(null)
+          }}
+          className="label touch-manipulation border-b border-ink-soft pb-0.5 text-ink-soft transition-opacity duration-200 hover:opacity-60"
+        >
+          {revealed ? 'Hide' : 'Reveal'}
+        </button>
+        <button
+          type="button"
+          onClick={share}
+          className="label touch-manipulation border-b border-ink pb-0.5 text-ink transition-opacity duration-200 hover:opacity-60"
+        >
+          {copied ? 'Copied' : 'Share'}
+        </button>
+      </div>
+      {fallback !== null && (
+        <textarea
+          readOnly
+          value={fallback}
+          rows={4}
+          onFocus={(e) => e.currentTarget.select()}
+          ref={(node) => node?.select()}
+          aria-label="Your result, ready to copy"
+          className="w-full max-w-[24rem] resize-none rounded-sm border border-ink-soft bg-transparent p-2 text-center font-display text-xs leading-tight tracking-[0.08em] text-ink"
+        />
+      )}
+    </div>
+  )
+}
+
+function AllDone({
+  streak,
+  puzzleNo,
+  chains,
+  onPlayAgain,
+}: {
+  streak: number
+  puzzleNo: number
+  chains: Chains
+  onPlayAgain: () => void
+}) {
   return (
     <div
       className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 text-center"
@@ -529,11 +644,9 @@ function AllDone({ streak, onPlayAgain }: { streak: number; onPlayAgain: () => v
       <p className="label">
         Streak <span className="tnum text-ink">{streak}</span>
       </p>
-      <p className="max-w-[24ch] font-body text-sm text-ink-soft italic">
-        The share card goes here.
-      </p>
-      {/* Nothing rotates the seed daily yet, so without this a finished puzzle is a dead
-          end — every future visit lands right back on this screen with no way to play. */}
+      <ShareCard puzzleNo={puzzleNo} chains={chains} />
+      {/* A finished puzzle would otherwise be a dead end until the seed turns over at midnight
+          UTC — every visit before then landing back here with nothing left to play. */}
       <button
         type="button"
         onClick={onPlayAgain}
