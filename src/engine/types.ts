@@ -1,5 +1,3 @@
-export const SEED = 'STONE'
-
 /**
  * Two-letter words are more seed than word: LA and AN on PLANT add nothing of the player's
  * own, and admitting them made whole rounds solvable by walking the seed a letter at a time.

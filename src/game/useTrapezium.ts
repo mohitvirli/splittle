@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   applyResult,
   createRound,
@@ -12,24 +12,27 @@ import { MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../engine/types'
 import type { RoundState, SubmitFailure } from '../engine/types'
 import { getDictionary } from '../dictionary/dictionary'
 import type { Dictionary } from '../dictionary/dictionary'
-import { TIERS, allTiersWon, loadProgress, saveProgress } from './storage'
+import { TIERS, allTiersWon, bankDay, loadProgress, saveProgress } from './storage'
 import type { Progress, Tier } from './storage'
+import { puzzleForDate, todayUTC } from './puzzles'
 
 /** Seed letters consumed so far. The first word claims both its ends at once. */
 export const coveredCount = (round: RoundState): number =>
   round.words.length === 0 ? 0 : round.currentPos + 1
 
-const freshRounds = (): Record<Tier, RoundState> => ({
-  4: createRound(),
-  3: createRound(),
-  2: createRound(),
+const freshRounds = (seed: string): Record<Tier, RoundState> => ({
+  4: createRound(seed),
+  3: createRound(seed),
+  2: createRound(seed),
 })
 
 export function useTrapezium() {
   const [dict, setDict] = useState<Dictionary | null>(null)
   const [tier, setTierState] = useState<Tier>(4)
+  const [date, setDate] = useState(todayUTC)
+  const puzzle = useMemo(() => puzzleForDate(date), [date])
   // Every tier holds its own chain, so leaving a section and coming back resumes it.
-  const [rounds, setRounds] = useState<Record<Tier, RoundState>>(freshRounds)
+  const [rounds, setRounds] = useState<Record<Tier, RoundState>>(() => freshRounds(puzzle.seed))
   const round = rounds[tier]
   const setRound = useCallback(
     (next: RoundState) => setRounds((all) => ({ ...all, [tier]: next })),
@@ -40,13 +43,45 @@ export function useTrapezium() {
     null,
   )
   const [justCovered, setJustCovered] = useState<{ indices: number[]; nonce: number } | null>(null)
-  const [progress, setProgress] = useState<Progress>(() => loadProgress())
+  const [progress, setProgress] = useState<Progress>(() => loadProgress(date))
 
   // ~170ms of synchronous index building. Kept off the first paint.
   useEffect(() => {
     const id = window.setTimeout(() => setDict(getDictionary()), 0)
     return () => window.clearTimeout(id)
   }, [])
+
+  /**
+   * Catch the day turning over underneath a tab that was left open.
+   *
+   * A phone rarely closes anything, so the session that started yesterday evening is the same
+   * one that comes back tomorrow morning — without this it would still be holding yesterday's
+   * seed while the rest of the world moved on. Checked when the tab is looked at again rather
+   * than on a timer: nobody is watching the puzzle change at midnight.
+   */
+  useEffect(() => {
+    const check = () => setDate(todayUTC())
+    window.addEventListener('visibilitychange', check)
+    window.addEventListener('focus', check)
+    return () => {
+      window.removeEventListener('visibilitychange', check)
+      window.removeEventListener('focus', check)
+    }
+  }, [])
+
+  // A new day is a new puzzle: chains, draft and progress all belong to the date they were
+  // played on. Skipped on the first render, where this state was already built from `date`.
+  const known = useRef(date)
+  useEffect(() => {
+    if (known.current === date) return
+    known.current = date
+    setRounds(freshRounds(puzzle.seed))
+    setProgress(loadProgress(date))
+    setTierState(4)
+    setDraft('')
+    setError(null)
+    setJustCovered(null)
+  }, [date, puzzle.seed])
 
   useEffect(() => {
     if (!justCovered) return
@@ -92,11 +127,11 @@ export function useTrapezium() {
   const canStepBack = round.words.length > 0 && draft.length === 0
 
   const restart = useCallback(() => {
-    setRound(createRound())
+    setRound(createRound(puzzle.seed))
     setDraft('')
     setError(null)
     setJustCovered(null)
-  }, [setRound])
+  }, [setRound, puzzle.seed])
 
   /** Switching sections leaves each chain standing; only the half-typed word is dropped. */
   const setTier = useCallback((next: Tier) => {
@@ -145,11 +180,7 @@ export function useTrapezium() {
         // `judge` only lets a round finish on its target word, so the tier played is the
         // only one won — a short solve is no longer a win for the longer targets.
         const tiersWon = { ...current.tiersWon, [tier]: true }
-        const completed = !allTiersWon(current) && allTiersWon({ ...current, tiersWon })
-        const updated: Progress = {
-          tiersWon,
-          streak: completed ? current.streak + 1 : current.streak,
-        }
+        const updated = bankDay({ ...current, tiersWon })
         saveProgress(updated)
         return updated
       })
@@ -157,22 +188,24 @@ export function useTrapezium() {
   }, [dict, effective, round, setRound, tier])
 
   /**
-   * The only way out of "all three crossed" — there is no daily rotation, so without this
-   * finishing the puzzle once would strand every future visit on the results screen with
-   * nothing left to play. Streak survives; everything about the attempt itself does not.
+   * Replay today, rather than sit on the results screen until tomorrow's seed arrives.
+   *
+   * The day stays banked — `lastWonDate` is untouched, so the streak neither grows nor breaks
+   * on a second run at a puzzle that has already been finished. Everything about the attempt
+   * itself is thrown away.
    */
   const playAgain = useCallback(() => {
     setProgress((current) => {
-      const updated: Progress = { tiersWon: { 4: false, 3: false, 2: false }, streak: current.streak }
+      const updated: Progress = { ...current, tiersWon: { 4: false, 3: false, 2: false } }
       saveProgress(updated)
       return updated
     })
-    setRounds(freshRounds())
+    setRounds(freshRounds(puzzle.seed))
     setTierState(4)
     setDraft('')
     setError(null)
     setJustCovered(null)
-  }, [])
+  }, [puzzle.seed])
 
   const undo = useCallback(() => {
     if (round.words.length === 0) return
@@ -194,6 +227,7 @@ export function useTrapezium() {
   return {
     ready: dict !== null,
     seed: round.seed,
+    puzzleNo: puzzle.no,
     round,
     rounds,
     tier,

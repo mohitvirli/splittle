@@ -1,7 +1,6 @@
-import { SEED } from './types'
 import type { Dict, RoundState, SubmitResult } from './types'
 
-export function createRound(seed: string = SEED): RoundState {
+export function createRound(seed: string): RoundState {
   return { seed: seed.toUpperCase(), currentPos: 0, words: [], solved: false }
 }
 

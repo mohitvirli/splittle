@@ -5,7 +5,7 @@ import { HelpIcon, LockIcon, RestartIcon, UndoIcon } from '../components/icons'
 import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
 import { motion } from '../game/motion'
-import { PUZZLE_NUMBER, TIERS } from '../game/storage'
+import { TIERS } from '../game/storage'
 import { useTrapezium } from '../game/useTrapezium'
 import type { SubmitFailure } from '../engine/types'
 
@@ -178,7 +178,7 @@ export function Playing({ active, intro, inputRef, onHome, onOpenHelp }: Playing
           <IconButton label="Open help" onClick={onOpenHelp}>
             <HelpIcon />
           </IconButton>
-          <span className="label tnum">No. {PUZZLE_NUMBER}</span>
+          <span className="label tnum">No. {game.puzzleNo}</span>
         </div>
       </header>
 
