@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local tool state — indexes and assistant config, rebuilt per machine
+.codegraph/
+.cursor/
