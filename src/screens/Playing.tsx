@@ -588,25 +588,31 @@ function ShareCard({ puzzleNo, chains }: { puzzleNo: number; chains: Chains }) {
           </span>
         ))}
       </div>
+      {/* Reveal only uncovers what's already on screen, so it stays the quiet one; Share is
+          the action worth taking here, and the sage is spoken for by Play again below. */}
       <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => {
-            setRevealed((current) => !current)
-            setCopied(false)
-            setFallback(null)
-          }}
-          className="label touch-manipulation border-b border-ink-soft pb-0.5 text-ink-soft transition-opacity duration-200 hover:opacity-60"
-        >
-          {revealed ? 'Hide' : 'Reveal'}
-        </button>
-        <button
-          type="button"
-          onClick={share}
-          className="label touch-manipulation border-b border-ink pb-0.5 text-ink transition-opacity duration-200 hover:opacity-60"
-        >
-          {copied ? 'Copied' : 'Share'}
-        </button>
+        <span className="pixel-notch-lift">
+          <button
+            type="button"
+            onClick={() => {
+              setRevealed((current) => !current)
+              setCopied(false)
+              setFallback(null)
+            }}
+            className="pixel-notch pixel-quiet touch-manipulation px-4 py-2.5"
+          >
+            {revealed ? 'Hide' : 'Reveal'}
+          </button>
+        </span>
+        <span className="pixel-notch-lift">
+          <button
+            type="button"
+            onClick={share}
+            className="pixel-notch pixel-ink touch-manipulation px-4 py-2.5"
+          >
+            {copied ? 'Copied' : 'Share'}
+          </button>
+        </span>
       </div>
       {fallback !== null && (
         <textarea
@@ -648,13 +654,15 @@ function AllDone({
       <ShareCard puzzleNo={puzzleNo} chains={chains} />
       {/* A finished puzzle would otherwise be a dead end until the seed turns over at midnight
           UTC — every visit before then landing back here with nothing left to play. */}
-      <button
-        type="button"
-        onClick={onPlayAgain}
-        className="label touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
-      >
-        Play again →
-      </button>
+      <span className="pixel-notch-lift">
+        <button
+          type="button"
+          onClick={onPlayAgain}
+          className="pixel-notch pixel-accent touch-manipulation px-6 py-3.5"
+        >
+          Play again →
+        </button>
+      </span>
     </div>
   )
 }

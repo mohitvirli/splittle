@@ -135,25 +135,35 @@ export function Intro({ onDone, inputRef, onOpenHelp }: Props) {
         Split the word into a chain
       </p>
 
-      <button
-        type="button"
-        onClick={start}
-        autoFocus
+      {/* The intro's tween targets the wrapper, not the button: GSAP owns the transform
+          on one and the press owns it on the other, so neither overwrites the other. */}
+      <span
         data-intro-action
-        className="label absolute top-[calc(36vh+5.25rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+        className="pixel-notch-lift absolute top-[calc(36vh+5.25rem)] left-1/2 -translate-x-1/2"
       >
-        Play →
-      </button>
+        <button
+          type="button"
+          onClick={start}
+          autoFocus
+          className="pixel-notch pixel-accent touch-manipulation px-6 py-3.5"
+        >
+          Play →
+        </button>
+      </span>
 
-      <button
-        type="button"
-        onClick={onOpenHelp}
-        aria-label="Open help"
+      <span
         data-intro-action
-        className="label absolute top-[calc(36vh+8rem)] left-1/2 -translate-x-1/2 touch-manipulation border-b border-ink pb-1 text-ink transition-opacity duration-200 hover:opacity-60"
+        className="pixel-notch-lift absolute top-[calc(36vh+9.5rem)] left-1/2 -translate-x-1/2"
       >
-        How to play
-      </button>
+        <button
+          type="button"
+          onClick={onOpenHelp}
+          aria-label="Open help"
+          className="pixel-notch pixel-quiet touch-manipulation px-5 py-3"
+        >
+          How to play
+        </button>
+      </span>
     </div>
   )
 }

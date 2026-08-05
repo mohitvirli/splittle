@@ -24,6 +24,10 @@
   --color-rule: oklch(0.855 0.02 76);
   --color-accent: oklch(0.48 0.075 142);
   --color-accent-soft: oklch(0.62 0.065 142);
+  /* Every pixel button casts this same shadow, whatever it is filled with.
+     Sitting between ink and ink-soft, it is dark enough to hold under the pale
+     fills and light enough not to swallow the sage. */
+  --color-cast: oklch(0.42 0.022 64);
   /* The landing's ground. Tinted toward the paper's hue rather than pure black. */
   --color-night: oklch(0.17 0.014 62);
 
@@ -69,6 +73,114 @@ body {
 
 @utility tnum {
   font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── Notched pixel button ───────────────────────────────────────────────────
+   Corners step in 5px instead of rounding. Filled rather than outlined: a
+   border would be sliced open at every notch, since clip-path cuts the stroke
+   along with the box. Nothing here eases — the press is a whole-pixel jump. */
+@utility pixel-notch {
+  border-radius: 0;
+  /* The chassis carries its own type. The `label` utility would fight the
+     variants below for the colour property at equal specificity, which leaves
+     the winner down to source order. */
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  /* The wrapper zeroes this to kill the inline-block descender gap; left
+     inherited, the label gets no line box and its descenders clip. */
+  line-height: 1;
+  clip-path: polygon(
+    0 5px,
+    5px 5px,
+    5px 0,
+    calc(100% - 5px) 0,
+    calc(100% - 5px) 5px,
+    100% 5px,
+    100% calc(100% - 5px),
+    calc(100% - 5px) calc(100% - 5px),
+    calc(100% - 5px) 100%,
+    5px 100%,
+    5px calc(100% - 5px),
+    0 calc(100% - 5px)
+  );
+
+  /* The fill never changes, so the ring is all a keyboard would get. Inset —
+     an outline is clipped away at the notches — and drawn in currentColor so
+     it inverts with whichever variant is on the button. */
+  &:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px currentColor;
+  }
+
+  /* Up on hover, down on press — the shadow answers each in pixel-notch-lift.
+     Guarded, because a touch device holds the last tapped element in :hover
+     and would leave the button stuck in the air after the press.
+     :active is declared after :hover, so it wins while the two overlap. */
+  @media (hover: hover) {
+    &:hover {
+      transform: translate(-2px, -2px);
+    }
+  }
+
+  &:active {
+    transform: translate(4px, 4px);
+  }
+}
+
+/* ── Button roles ───────────────────────────────────────────────────────────
+   One CTA per screen wears the sage; everything beside it steps down to ink,
+   and anything optional to a tint barely off the paper. The fill is fixed —
+   hover and press are both told by the height off the page, and a colour
+   change on top of that reads as a second, competing event. */
+@utility pixel-accent {
+  background: var(--color-accent);
+  color: var(--color-paper);
+}
+
+@utility pixel-ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* No border to speak of: an outline would be sliced at every notch, so the
+   quiet variant reads as a tint against the paper instead. */
+@utility pixel-quiet {
+  background: var(--color-paper-deep);
+  color: var(--color-ink);
+}
+
+/* The shadow belongs to the wrapper, not the button. box-shadow draws off the
+   unclipped rectangle and spills past the notches; drop-shadow traces the
+   clipped silhouette — but only from a parent, because a filter on the clipped
+   element is clipped away with it.
+
+   The gesture is split across the two: the child moves, the parent resizes the
+   gap. Both on the wrapper would work, except GSAP leaves an inline transform
+   on this node after the intro and inline beats a stylesheet. :has keeps the
+   parent to properties nothing else is writing.
+
+   The offset grows rather than travels. The face steps up-left by 2px while
+   the cast grows by the same 2px, which leaves its far edge on exactly the
+   spot it occupied at rest — the ground stays put and only the height above it
+   changes. Pressed, the offset goes to nothing and the face lands on it. */
+@utility pixel-notch-lift {
+  --cast: 4px;
+  display: inline-block;
+  line-height: 0;
+  filter: drop-shadow(var(--cast) var(--cast) 0 var(--color-cast));
+
+  @media (hover: hover) {
+    &:has(:hover) {
+      --cast: 6px;
+    }
+  }
+
+  &:has(:active) {
+    filter: none;
+  }
 }
 
 /* The chain scrolls, but a bar flickering in during the entry animation reads as a glitch. */
