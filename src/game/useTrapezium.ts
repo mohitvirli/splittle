@@ -187,7 +187,10 @@ export function useTrapezium() {
         // `judge` only lets a round finish on its target word, so the tier played is the
         // only one won — a short solve is no longer a win for the longer targets.
         const tiersWon = { ...current.tiersWon, [tier]: true }
-        const updated = bankDay({ ...current, tiersWon })
+        // The chain is kept, not just the fact of it: the share card is drawn from the words
+        // themselves, and `rounds` only lives as long as the tab does.
+        const chains = { ...current.chains, [tier]: next.words }
+        const updated = bankDay({ ...current, tiersWon, chains })
         saveProgress(updated)
         return updated
       })
@@ -203,7 +206,7 @@ export function useTrapezium() {
    */
   const playAgain = useCallback(() => {
     setProgress((current) => {
-      const updated: Progress = { ...current, tiersWon: { 4: false, 3: false, 2: false } }
+      const updated: Progress = { ...current, tiersWon: { 4: false, 3: false, 2: false }, chains: {} }
       saveProgress(updated)
       return updated
     })
