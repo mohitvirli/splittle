@@ -165,9 +165,9 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
           onClick={onHome}
           aria-label="Back to the title"
           data-masthead
-          className="origin-center touch-manipulation font-melodrama text-xl font-bold tracking-[0.03em]"
+          className="origin-center touch-manipulation font-display text-xl font-bold tracking-[0.03em]"
         >
-          Splittle.
+          splittle.
         </button>
         <div className={`flex items-center gap-3 ${quiet}`}>
           <IconButton label="Open help" onClick={onOpenHelp}>
