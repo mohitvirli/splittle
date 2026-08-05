@@ -147,6 +147,46 @@ export function withPivot(state: RoundState, rawDraft: string): string {
 }
 
 /**
+ * The word the engine should judge, given a draft that stops short of the seed.
+ *
+ * The mirror of `withPivot`. A word has to come back down onto the seed, so the letters it
+ * lands on are assumed the same way the pivot is: from S on STONE, SHO, HO, SHOT and HOT all
+ * mean SHOT. This is what the display has been promising the whole time — the box holds the
+ * letter it is reaching for out in front of the player as they type — so accepting it closes
+ * the gap between what is shown and what Enter will take.
+ *
+ * A draft that already lands is taken at face value and returned untouched, which keeps every
+ * word that worked before working unchanged. Only one that goes nowhere is completed, and the
+ * shortest completion wins, so the letter inferred is the nearest one — the one on screen.
+ */
+export function withLanding(state: RoundState, rawDraft: string, dict: Dict): string {
+  const word = rawDraft.trim().toUpperCase()
+  if (!word || state.solved) return word
+  if (resolve(state, word, dict).result.kind === 'LANDED') return word
+
+  /* Nothing of the player's own yet — the draft is still running along the seed. Completing
+     here would hand back a word made only of seed letters: on STONE a bare S becomes ST,
+     which is a move the player never asked for. Typing ST out in full still plays it; it
+     just is not something a single keystroke should conjure. */
+  if (seedMatchLength(state, word) === word.length) return word
+
+  const { seed, currentPos } = state
+  const maxChunkEnd = seed.length - 2
+
+  // Suffix length outside chunk, so the fewest letters are ever put into the player's mouth.
+  for (let reach = 1; reach < seed.length - currentPos; reach++) {
+    for (let chunkEnd = currentPos; chunkEnd <= maxChunkEnd; chunkEnd++) {
+      const m = chunkEnd + reach
+      if (m > seed.length - 1) break
+      if (!word.startsWith(seed.slice(currentPos, chunkEnd + 1))) break
+      const candidate = word + seed.slice(chunkEnd + 1, m + 1)
+      if (resolve(state, candidate, dict).result.kind === 'LANDED') return candidate
+    }
+  }
+  return word
+}
+
+/**
  * How many seed letters the typed word runs along from the cursor. Drives the gap the
  * player sees open up in the seed as they type; it is not the chunk the word will use.
  */

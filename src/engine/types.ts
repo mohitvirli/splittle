@@ -1,6 +1,12 @@
 export const SEED = 'STONE'
 
-export const MIN_WORD_LENGTH = 2
+/**
+ * Two-letter words are more seed than word: LA and AN on PLANT add nothing of the player's
+ * own, and admitting them made whole rounds solvable by walking the seed a letter at a time.
+ * The dictionary is built to this bound, so anything shorter is simply not a word as far as
+ * the engine is concerned — no separate length rule to keep in step.
+ */
+export const MIN_WORD_LENGTH = 3
 export const MAX_WORD_LENGTH = 12
 
 /** Membership test for a single lowercase word. Injected so the engine stays pure. */

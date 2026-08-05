@@ -5,6 +5,7 @@ import {
   judge,
   seedMatchLength,
   undoLast,
+  withLanding,
   withPivot,
 } from '../engine/engine'
 import { MAX_WORD_LENGTH, MIN_WORD_LENGTH } from '../engine/types'
@@ -55,8 +56,19 @@ export function useTrapezium() {
 
   const pivot = round.seed[round.currentPos]
 
-  /** The word the engine actually sees, with the pivot assumed. See `withPivot`. */
-  const effective = useMemo(() => withPivot(round, draft), [round, draft])
+  /**
+   * The word the engine actually sees: the pivot assumed at the front, the landing assumed
+   * at the back. See `withPivot` and `withLanding` — between them, HO, SHO, HOT and SHOT all
+   * reach the engine as SHOT.
+   *
+   * The completion needs the dictionary to tell a real word from a fragment, so until it has
+   * loaded this is the pivot alone. Nothing can be submitted in that window anyway.
+   */
+  const effective = useMemo(() => {
+    const typed = withPivot(round, draft)
+    if (!dict) return typed
+    return withLanding(round, typed, (w) => dict.has(w))
+  }, [round, draft, dict])
 
   /** How far the word runs along the seed from the cursor. */
   const matched = useMemo(() => seedMatchLength(round, effective), [round, effective])

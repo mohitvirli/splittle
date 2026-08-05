@@ -9,6 +9,7 @@ import {
   seedMatchLength,
   submit,
   undoLast,
+  withLanding,
   withPivot,
 } from './engine'
 import type { Dict, RoundState } from './types'
@@ -79,24 +80,30 @@ describe('the four PLANT solutions', () => {
   })
 })
 
-describe('MIN_WORD_LENGTH = 2', () => {
-  it('admits two-letter pure seed slices as single-step moves', () => {
-    // LA and AN add nothing to the seed but are legal under the prefix-only length rule.
-    const state = walk([
-      [0, 'PEARL', 1],
-      [1, 'LA', 2],
-      [2, 'AN', 3],
-      [3, 'NIGHT', 4],
-    ])
-    expect(state.solved).toBe(true)
+describe('MIN_WORD_LENGTH = 3', () => {
+  it('turns two-letter pure seed slices away', () => {
+    // LA and AN walk the seed a letter at a time and contribute nothing of the player's own.
+    // They were legal single-step moves under the old bound; the dictionary is now built
+    // without them, so the engine never has to carry a length rule of its own.
+    expect(dict('la')).toBe(false)
+    expect(dict('an')).toBe(false)
+
+    let state = createRound(PLANT)
+    state = applyResult(state, submit(state, 0, 'PEARL', dict))
+    expect(state.currentPos).toBe(1)
+    expect(submit(state, 1, 'LA', dict)).toEqual({ kind: 'NOT_A_WORD' })
   })
 
-  it('does not let a word skip a seed letter — AT cannot reach T from A', () => {
-    // The suffix from chunkEnd 2 is seed[3..4] = "NT". AT ends in "T" and lands nowhere.
+  it('still admits three letters', () => {
+    expect(dict('ant')).toBe(true)
+  })
+
+  it('does not let a word skip a seed letter — nothing reaches T from A except on NT', () => {
+    // The suffix from chunkEnd 2 is seed[3..4] = "NT". ABOUT ends in "T" and lands nowhere.
     let state = createRound(PLANT)
     state = applyResult(state, submit(state, 1, 'PLASMA', dict))
     expect(state.currentPos).toBe(2)
-    expect(submit(state, 2, 'AT', dict)).toEqual({ kind: 'NO_LANDING' })
+    expect(submit(state, 2, 'ABOUT', dict)).toEqual({ kind: 'NO_LANDING' })
   })
 })
 
@@ -320,6 +327,51 @@ describe('withPivot — the pivot is assumed, not demanded', () => {
   it('is a no-op on an empty draft, and normalises case', () => {
     expect(withPivot(createRound(PLANT), '')).toBe('')
     expect(withPivot(createRound(PLANT), '  earl ')).toBe('PEARL')
+  })
+})
+
+describe('withLanding — the landing is assumed, not demanded', () => {
+  const start = () => createRound(PLANT)
+
+  it('completes a draft that stops short of the seed', () => {
+    // PEAR goes nowhere. The L it is one letter away from is the same L the box has been
+    // holding out in front of the player since they started typing.
+    expect(withLanding(start(), 'PEAR', dict)).toBe('PEARL')
+    expect(resolve(start(), 'PEARL', dict).result).toMatchObject({
+      kind: 'LANDED',
+      word: { word: 'PEARL', landedAt: 1 },
+    })
+  })
+
+  it('reaches past the first chunk when that is where the word lands', () => {
+    // Nothing completes PLASM on chunk P; on PL it is one A short of PLASMA.
+    expect(withLanding(start(), 'PLASM', dict)).toBe('PLASMA')
+  })
+
+  it('leaves a draft that already lands untouched', () => {
+    expect(withLanding(start(), 'PEARL', dict)).toBe('PEARL')
+    expect(withLanding(start(), 'PLASMA', dict)).toBe('PLASMA')
+  })
+
+  it('will not conjure a word out of seed letters alone', () => {
+    // P is still running along the seed — the player has contributed nothing to complete.
+    // PL would otherwise appear from a single keystroke.
+    expect(withLanding(start(), 'P', dict)).toBe('P')
+    expect(withLanding(start(), 'PL', dict)).toBe('PL')
+    // Typed out in full it is still whatever the rules make of it — untouched either way.
+    expect(withLanding(start(), 'PLAN', dict)).toBe('PLAN')
+  })
+
+  it('leaves a draft that no completion rescues alone', () => {
+    expect(withLanding(start(), 'PZZZ', dict)).toBe('PZZZ')
+    expect(withLanding(start(), '', dict)).toBe('')
+  })
+
+  it('composes with withPivot — every shorthand arrives as the same word', () => {
+    const state = start()
+    for (const typed of ['EAR', 'PEAR', 'EARL', 'PEARL']) {
+      expect(withLanding(state, withPivot(state, typed), dict), typed).toBe('PEARL')
+    }
   })
 })
 
