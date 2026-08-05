@@ -58,13 +58,14 @@ interface PlayingProps {
    * very elements rather than animating stand-ins — and everything around them waits.
    */
   intro: boolean
+  /** Owned by App — the intro's Play tap focuses it before this screen is even on show. */
+  inputRef: React.RefObject<HTMLInputElement | null>
   onHome: () => void
   onOpenHelp: () => void
 }
 
-export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
+export function Playing({ active, intro, inputRef, onHome, onOpenHelp }: PlayingProps) {
   const game = useTrapezium()
-  const inputRef = useRef<HTMLInputElement>(null)
   const root = useRef<HTMLElement>(null)
   /**
    * The last state the screen was actually animated for. Null means the first pass, which
@@ -78,7 +79,7 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
   // The display IS the input, so the field must hold focus for the keyboard to stay up.
   const keepFocus = useCallback(() => {
     if (active) inputRef.current?.focus()
-  }, [active])
+  }, [active, inputRef])
 
   useEffect(() => {
     // Kept focused through a solve too — that's what lets Enter carry straight on to the
@@ -118,7 +119,11 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
         /* fromTo, not from: these nodes are hidden right now — the intro put them that way
            — so anything reading its finish off the element would animate them to nothing. */
         gsap
-          .timeline({ defaults: { ease: 'power3.out' } })
+          /* The field can only take focus once it is actually visible: it rides in on
+             .js-chrome, and autoAlpha holds those at visibility:hidden until this timeline
+             has run. Asking any earlier — the effect below fires while they are still
+             hidden — is a silent no-op, which left the screen open with nothing focused. */
+          .timeline({ defaults: { ease: 'power3.out' }, onComplete: keepFocus })
           .fromTo(
             labels,
             { autoAlpha: 0, x: -14 },
@@ -167,7 +172,7 @@ export function Playing({ active, intro, onHome, onOpenHelp }: PlayingProps) {
           data-masthead
           className="origin-center touch-manipulation font-display text-xl font-bold tracking-[0.03em]"
         >
-          splittle.
+          splittle
         </button>
         <div className={`flex items-center gap-3 ${quiet}`}>
           <IconButton label="Open help" onClick={onOpenHelp}>
@@ -386,8 +391,13 @@ function Round({
             inputMode="text"
             aria-label="Your word"
             /* 16px keeps iOS Safari from zooming the page on focus. The text itself is
-               invisible — WordDisplay renders it. */
-            className="absolute inset-0 h-full w-full cursor-default bg-transparent text-[16px] text-transparent caret-transparent outline-none select-none"
+               invisible — WordDisplay renders it.
+               `visible` is load-bearing: visibility inherits, but a child may override a
+               hidden parent, and this field has to be focusable while the chrome it rides
+               in on is still held at autoAlpha 0. Nothing shows either way — the text and
+               caret are transparent — and the intro's pointer-events-none keeps it from
+               swallowing taps meant for the title screen. */
+            className="visible absolute inset-0 h-full w-full cursor-default bg-transparent text-[16px] text-transparent caret-transparent outline-none select-none"
           />
         </form>
 

@@ -24,6 +24,8 @@ function restingRect(el: HTMLElement): DOMRect {
 
 interface Props {
   onDone: () => void
+  /** The playing screen's field. Focused on the Play tap — see start(). */
+  inputRef: React.RefObject<HTMLInputElement | null>
   onOpenHelp: () => void
 }
 
@@ -34,7 +36,7 @@ interface Props {
  * middle of the page and flown back to the header on Play. That is what keeps the handover
  * free of a swap between a stand-in and the real thing.
  */
-export function Intro({ onDone, onOpenHelp }: Props) {
+export function Intro({ onDone, inputRef, onOpenHelp }: Props) {
   const root = useRef<HTMLDivElement>(null)
   const leaving = useRef(false)
 
@@ -101,6 +103,14 @@ export function Intro({ onDone, onOpenHelp }: Props) {
   const start = contextSafe(() => {
     if (leaving.current) return
     leaving.current = true
+
+    /* First thing, and synchronously: a phone opens its keyboard only for a focus() made
+       during the tap that called for it. Waiting for the handover to finish is too late —
+       the activation this tap granted is gone by then and the request is ignored, which is
+       why the game used to open with the caret blinking and no keyboard. The field is
+       still behind the title here, but it carries its own `visible` so it can take focus
+       anyway. */
+    inputRef.current?.focus()
 
     const title = masthead()
     const t = motion()

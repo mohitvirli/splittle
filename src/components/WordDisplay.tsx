@@ -70,9 +70,13 @@ export function WordDisplay({
   // A long word plus the seed it still has to reach will not fit at a fixed size, so the
   // type scales down to whatever the row actually needs. cqw measures the container, which
   // is capped by max-width — vw would be wrong on anything wider than the column.
-  const boxCells = solved
-    ? seed.length
-    : head.length + (blank ? 0.7 : mine.length) + (showTarget ? 1 : tail.length)
+  // The brackets are pulled in tight and collapse entirely once the rectangle takes over,
+  // so they are budgeted at well under a cell each and only while they are on screen.
+  const boxCells =
+    (active ? 0 : 0.8) +
+    (solved
+      ? seed.length
+      : head.length + (blank ? 0.7 : mine.length) + (showTarget ? 1 : tail.length))
   const cells = spent.length + boxCells + ahead.length
   const widthInEm = (cells * 0.78 + 0.34) * 1.05
   // Height is measured against the *visible* viewport, not the layout one — with the
@@ -100,6 +104,27 @@ export function WordDisplay({
     )
   }
 
+  /**
+   * Decorative — the rectangle says the same thing to a screen reader that these do.
+   *
+   * A bracket keeps its own advance rather than the 0.74em cell the letters are held to:
+   * the face is not fixed-advance, and a bracket sitting in a letter's cell is mostly air.
+   * On the way out that advance is cancelled by negative margins, so the bracket collapses
+   * to nothing and the rectangle closes onto the word instead of inheriting two empty
+   * columns. 0.171em a side is exactly half the glyph's own 0.342em.
+   */
+  const bracket = (char: string) => (
+    <span
+      aria-hidden
+      className={`block text-center text-ink-faint transition-all duration-300 ${
+        active ? 'opacity-0' : 'opacity-100'
+      }`}
+      style={active ? { marginLeft: '-0.171em', marginRight: '-0.171em' } : undefined}
+    >
+      {char}
+    </span>
+  )
+
   return (
     <div
       className="pointer-events-none flex items-baseline justify-center font-display leading-none"
@@ -108,11 +133,17 @@ export function WordDisplay({
     >
       {spent.split('').map((char, i) => letter(char, `s${i}`, 'text-ink-faint', i))}
 
+      {/* Two states, one shape. While the move is still open the box is a pair of square
+          brackets — [S _ T], a slot waiting to be filled. The moment the word lands they
+          hand over to a drawn rectangle, which closes around it. Both are always in the
+          layout and only cross-fade, so the letters never move for the swap. */}
       <span
-        className={`flex items-baseline border px-[0.14em] py-[0.06em] transition-colors duration-300 ${
-          active ? 'border-accent' : 'border-ink-faint'
+        className={`relative flex items-baseline border px-[0.06em] py-[0.06em] transition-colors duration-300 ${
+          active ? 'border-accent' : 'border-transparent'
         }`}
       >
+        {bracket('[')}
+
         {solved
           ? seed.split('').map((char, i) => letter(char, `b${i}`, seedTone, i))
           : head
@@ -120,8 +151,14 @@ export function WordDisplay({
               .map((char, i) => letter(char, `h${i}`, seedTone, currentPos + i))}
 
         {blank ? (
-          /* The blank, at its own natural width rather than a letter cell. */
-          <span className={`block px-[0.04em] ${mineTone}`}>_</span>
+          /* The blank, at its own natural width rather than a letter cell. Nothing else on
+             the screen is asking to be typed into, so it blinks like a caret. */
+          <span
+            className={`block px-[0.04em] ${mineTone}`}
+            style={{ animation: 'caret-blink 1.1s steps(1, end) infinite' }}
+          >
+            _
+          </span>
         ) : (
           mine.length > 0 && (
             // Positioned, not padded: a border on this wrapper would lift the player's
@@ -141,6 +178,8 @@ export function WordDisplay({
         {showTarget
           ? letter(seed[targetIndex], 'target', seedTone, targetIndex)
           : tail.split('').map((char, i) => letter(char, `t${i}`, seedTone))}
+
+        {bracket(']')}
       </span>
 
       {ahead.split('').map((char, i) => letter(char, `a${i}`, 'text-ink-faint', boxEnd + 1 + i))}

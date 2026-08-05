@@ -79,6 +79,17 @@ body {
   }
 }
 
+/* ── The blank, waiting ─────────────────────────────────────────────────────
+   Before the player has typed a letter of their own the underscore is the only
+   thing asking for input, so it blinks the way a terminal caret does: a hard
+   on/off, no fade. steps(1, end) holds each half of the cycle flat.
+   Reduced motion collapses the duration, which leaves it simply on. */
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 /* ── The landing moment ─────────────────────────────────────────────────────
    A letter the chain has just claimed flares in the accent, then hands colour
    back to its actual position: spent letters mute, the new pivot stays readable. */
