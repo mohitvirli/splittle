@@ -183,6 +183,58 @@ body {
   }
 }
 
+/* ── Notched panel ──────────────────────────────────────────────────────────
+   The button's chassis at panel scale, framed rather than raised. Corners step
+   8px rather than 5px — a notch is read relative to the box it is cut from,
+   and 5px on something this wide reads as a rounding error.
+
+   The frame is two boxes, not a border: clip-path cuts a stroke along with
+   everything else, so a real border would be sliced open at all four notches.
+   The outer box is ink, the inner one paper inset 2px, each clipped to its own
+   polygon.
+
+   Both notches are 8px. Insetting a notched rectangle moves the step corner
+   inward on both axes at once, so measured from the inner box's own origin the
+   notch comes out the same size it started — shrinking it to 6px lands the
+   paper exactly on the ink step and eats the frame at all four corners. */
+@utility pixel-panel {
+  border-radius: 0;
+  background: var(--color-ink);
+  padding: 2px;
+  clip-path: polygon(
+    0 8px,
+    8px 8px,
+    8px 0,
+    calc(100% - 8px) 0,
+    calc(100% - 8px) 8px,
+    100% 8px,
+    100% calc(100% - 8px),
+    calc(100% - 8px) calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    8px calc(100% - 8px),
+    0 calc(100% - 8px)
+  );
+
+  & > * {
+    background: var(--color-paper);
+    clip-path: polygon(
+      0 8px,
+      8px 8px,
+      8px 0,
+      calc(100% - 8px) 0,
+      calc(100% - 8px) 8px,
+      100% 8px,
+      100% calc(100% - 8px),
+      calc(100% - 8px) calc(100% - 8px),
+      calc(100% - 8px) 100%,
+      8px 100%,
+      8px calc(100% - 8px),
+      0 calc(100% - 8px)
+    );
+  }
+}
+
 /* The chain scrolls, but a bar flickering in during the entry animation reads as a glitch. */
 @utility no-scrollbar {
   scrollbar-width: none;

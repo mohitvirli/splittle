@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
-import { HelpIcon, LockIcon, RestartIcon, UndoIcon } from '../components/icons'
+import { EyeIcon, EyeOffIcon, HelpIcon, LockIcon, RestartIcon, UndoIcon } from '../components/icons'
 import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
 import { motion } from '../game/motion'
@@ -537,7 +537,17 @@ function IconButton({
  * to anyone who looks at it twice — so revealing it is a deliberate tap, and only then does
  * the share carry it.
  */
-function ShareCard({ puzzleNo, chains }: { puzzleNo: number; chains: Chains }) {
+function ShareCard({
+  puzzleNo,
+  chains,
+  children,
+}: {
+  puzzleNo: number
+  chains: Chains
+  /** Rendered beside Share. The screen's other action belongs on that row, not under it —
+   *  two buttons on one line leave one silhouette where stacking them left three. */
+  children?: React.ReactNode
+}) {
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [fallback, setFallback] = useState<string | null>(null)
@@ -580,18 +590,23 @@ function ShareCard({ puzzleNo, chains }: { puzzleNo: number; chains: Chains }) {
   if (rows.length === 0) return null
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      <div className="flex flex-col items-center gap-1 font-display text-[clamp(0.8rem,3.6vw,1.05rem)] leading-tight tracking-[0.08em]">
-        {rows.map((row) => (
-          <span key={row.tier} className="whitespace-nowrap">
-            {row.ribbon}
-          </span>
-        ))}
-      </div>
-      {/* Reveal only uncovers what's already on screen, so it stays the quiet one; Share is
-          the action worth taking here, and the sage is spoken for by Play again below. */}
-      <div className="flex items-center gap-4">
-        <span className="pixel-notch-lift">
+    /* One grid column, sized to fit its widest child. Both rows stretch to it, so the panel
+       takes its minimum width from the button row and grows past it only when a long chain
+       needs the space. max-w-full keeps that from pushing off a narrow screen. */
+    <div className="mx-auto grid w-fit max-w-full gap-7">
+      {/* The card, made an object: the chain sits in a panel of the same cut as the buttons,
+          and the eye that uncovers it lives on that panel rather than floating underneath.
+          Absolutely placed, so the rows stay centred on the panel's full width instead of on
+          whatever the icon leaves them. */}
+      <div className="pixel-panel">
+        <div className="relative px-11 py-5">
+          <div className="flex flex-col items-center gap-1.5 font-display text-[clamp(1rem,4.6vw,1.35rem)] leading-tight tracking-[0.08em]">
+            {rows.map((row) => (
+              <span key={row.tier} className="whitespace-nowrap">
+                {row.ribbon}
+              </span>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -599,20 +614,25 @@ function ShareCard({ puzzleNo, chains }: { puzzleNo: number; chains: Chains }) {
               setCopied(false)
               setFallback(null)
             }}
-            className="pixel-notch pixel-quiet touch-manipulation px-4 py-2.5"
+            aria-label={revealed ? 'Hide the chain' : 'Reveal the chain'}
+            aria-pressed={revealed}
+            className="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 touch-manipulation items-center justify-center text-ink-soft transition-colors duration-200 hover:text-ink"
           >
-            {revealed ? 'Hide' : 'Reveal'}
+            {revealed ? <EyeOffIcon /> : <EyeIcon />}
           </button>
-        </span>
+        </div>
+      </div>
+      <div className="flex items-flex-end justify-center gap-3">
         <span className="pixel-notch-lift">
           <button
             type="button"
             onClick={share}
-            className="pixel-notch pixel-ink touch-manipulation px-4 py-2.5"
+            className="pixel-notch pixel-ink touch-manipulation px-5 py-3"
           >
             {copied ? 'Copied' : 'Share'}
           </button>
         </span>
+        {children}
       </div>
       {fallback !== null && (
         <textarea
@@ -641,28 +661,35 @@ function AllDone({
   onPlayAgain: () => void
 }) {
   return (
+    /* Spacing does the grouping. An even gap between all four blocks left the streak floating
+       equidistant from the headline it belongs to and the ribbon it doesn't, which is most of
+       what read as clutter — tight within a group, open between them. */
     <div
-      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 text-center"
+      className="flex min-h-0 flex-1 flex-col items-center justify-center text-center"
       style={{ animation: 'fade-rise 620ms var(--ease-out-quint) both' }}
     >
       <p className="font-display text-[clamp(2rem,10vw,3rem)] leading-none">
         All three <span className="text-accent">crossed</span>
       </p>
-      <p className="label">
+      <p className="label mt-3">
         Streak <span className="tnum text-ink">{streak}</span>
       </p>
-      <ShareCard puzzleNo={puzzleNo} chains={chains} />
-      {/* A finished puzzle would otherwise be a dead end until the seed turns over at midnight
-          UTC — every visit before then landing back here with nothing left to play. */}
-      <span className="pixel-notch-lift">
-        <button
-          type="button"
-          onClick={onPlayAgain}
-          className="pixel-notch pixel-accent touch-manipulation px-6 py-3.5"
-        >
-          Play again →
-        </button>
-      </span>
+      <div className="mt-10 w-full">
+        <ShareCard puzzleNo={puzzleNo} chains={chains}>
+          {/* A finished puzzle would otherwise be a dead end until the seed turns over at
+              midnight UTC — every visit before then landing back here with nothing left to
+              play. Sage, and last on the row: it is the way onward. */}
+          <span className="pixel-notch-lift">
+            <button
+              type="button"
+              onClick={onPlayAgain}
+              className="pixel-notch pixel-accent touch-manipulation px-5 py-3"
+            >
+              Play again →
+            </button>
+          </span>
+        </ShareCard>
+      </div>
     </div>
   )
 }

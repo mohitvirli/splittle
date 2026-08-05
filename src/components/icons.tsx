@@ -81,6 +81,46 @@ export function HelpIcon({ className = '' }: IconProps) {
   )
 }
 
+/** Show the chain the mask is covering. */
+export function EyeIcon({ className = '' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`${base} ${className}`}
+    >
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+/** Put the mask back over it. */
+export function EyeOffIcon({ className = '' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`${base} ${className}`}
+    >
+      <path d="M10 6a9.6 9.6 0 0 1 2-.2c6 0 9.5 6.2 9.5 6.2a16.6 16.6 0 0 1-3 3.9" />
+      <path d="M6.6 7.7A16.6 16.6 0 0 0 2.5 12S6 18.2 12 18.2a9.4 9.4 0 0 0 3.6-.7" />
+      <path d="M10 10a2.8 2.8 0 0 0 4 4" />
+      <path d="m4 4 16 16" />
+    </svg>
+  )
+}
+
 /** A closed section that has not been reached yet. */
 export function LockIcon({ className = '' }: IconProps) {
   return (
