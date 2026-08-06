@@ -81,6 +81,9 @@ body {
    along with the box. Nothing here eases — the press is a whole-pixel jump. */
 @utility pixel-notch {
   border-radius: 0;
+  /* Positioned, so it paints over the wrapper's shadow box without either of
+     them needing a z-index — both are in the same layer and this comes later. */
+  position: relative;
   /* The chassis carries its own type. The `label` utility would fight the
      variants below for the colour property at equal specificity, which leaves
      the winner down to source order. */
@@ -126,7 +129,7 @@ body {
   }
 
   &:active {
-    transform: translate(4px, 4px);
+    transform: translate(5px, 5px);
   }
 }
 
@@ -152,34 +155,59 @@ body {
   color: var(--color-ink);
 }
 
-/* The shadow belongs to the wrapper, not the button. box-shadow draws off the
-   unclipped rectangle and spills past the notches; drop-shadow traces the
-   clipped silhouette — but only from a parent, because a filter on the clipped
-   element is clipped away with it.
+/* The shadow is a second box, not an effect. box-shadow draws off the unclipped
+   rectangle and spills past the notches, and drop-shadow — which does trace the
+   clipped silhouette — comes out displaced on iOS Safari, casting to the left of
+   the button instead of under it. A plain element cut to the same polygon has
+   nothing to rasterize and no filter region to get wrong.
 
-   The gesture is split across the two: the child moves, the parent resizes the
-   gap. Both on the wrapper would work, except GSAP leaves an inline transform
-   on this node after the intro and inline beats a stylesheet. :has keeps the
-   parent to properties nothing else is writing.
+   It lives on the wrapper because the button's own clip-path would cut away a
+   pseudo-element of its own. Paint order does the layering: both sit in the same
+   layer and the button, positioned and later in the tree, covers this.
 
-   The offset grows rather than travels. The face steps up-left by 2px while
-   the cast grows by the same 2px, which leaves its far edge on exactly the
-   spot it occupied at rest — the ground stays put and only the height above it
-   changes. Pressed, the offset goes to nothing and the face lands on it. */
+   The offset grows rather than travels. The face steps up-left by 2px while the
+   cast grows by the same 2px, which leaves its far edge on exactly the spot it
+   occupied at rest — the ground stays put and only the height above it changes.
+   Pressed, the cast goes and the face lands where it was.
+
+   5px matches the notch and never goes under it: an offset smaller than the
+   corner cut shows the cast through the button's own missing corners. */
 @utility pixel-notch-lift {
-  --cast: 4px;
+  --cast: 5px;
+  position: relative;
   display: inline-block;
   line-height: 0;
-  filter: drop-shadow(var(--cast) var(--cast) 0 var(--color-cast));
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--color-cast);
+    transform: translate(var(--cast), var(--cast));
+    clip-path: polygon(
+      0 5px,
+      5px 5px,
+      5px 0,
+      calc(100% - 5px) 0,
+      calc(100% - 5px) 5px,
+      100% 5px,
+      100% calc(100% - 5px),
+      calc(100% - 5px) calc(100% - 5px),
+      calc(100% - 5px) 100%,
+      5px 100%,
+      5px calc(100% - 5px),
+      0 calc(100% - 5px)
+    );
+  }
 
   @media (hover: hover) {
     &:has(:hover) {
-      --cast: 6px;
+      --cast: 7px;
     }
   }
 
-  &:has(:active) {
-    filter: none;
+  &:has(:active)::before {
+    display: none;
   }
 }
 
