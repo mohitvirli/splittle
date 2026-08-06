@@ -596,30 +596,35 @@ function ShareCard({
     <div className="mx-auto grid w-fit max-w-full gap-7">
       {/* The card, made an object: the chain sits in a panel of the same cut as the buttons,
           and the eye that uncovers it lives on that panel rather than floating underneath.
-          Absolutely placed, so the rows stay centred on the panel's full width instead of on
-          whatever the icon leaves them. */}
-      <div className="pixel-panel">
-        <div className="relative px-11 py-5">
-          <div className="flex flex-col items-center gap-1.5 font-display text-[clamp(1rem,4.6vw,1.35rem)] leading-tight tracking-[0.08em]">
-            {rows.map((row) => (
-              <span key={row.tier} className="whitespace-nowrap">
-                {row.ribbon}
-              </span>
-            ))}
+          Padding is lopsided on purpose — the rows start at the left edge, and only the right
+          has an icon to clear. */}
+      <div className="pixel-panel-lift">
+        <div className="pixel-panel">
+          <div className="relative py-5 pr-10 pl-5">
+            {/* The rows never wrap, so the viewport term has to leave room for the longest
+                chain a 4-word round can weld — past about 5vw a run of 20 letters pushes the
+                panel through its own max-width and scrolls the page. */}
+            <div className="flex flex-col items-start gap-1.5 font-display text-[clamp(1.1rem,5vw,1.6rem)] leading-tight font-bold tracking-[0.08em]">
+              {rows.map((row) => (
+                <span key={row.tier} className="whitespace-nowrap">
+                  {row.ribbon}
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRevealed((current) => !current)
+                setCopied(false)
+                setFallback(null)
+              }}
+              aria-label={revealed ? 'Hide the chain' : 'Reveal the chain'}
+              aria-pressed={revealed}
+              className="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 touch-manipulation items-center justify-center text-ink-soft transition-colors duration-200 hover:text-ink"
+            >
+              {revealed ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setRevealed((current) => !current)
-              setCopied(false)
-              setFallback(null)
-            }}
-            aria-label={revealed ? 'Hide the chain' : 'Reveal the chain'}
-            aria-pressed={revealed}
-            className="absolute top-1/2 right-1 flex h-11 w-11 -translate-y-1/2 touch-manipulation items-center justify-center text-ink-soft transition-colors duration-200 hover:text-ink"
-          >
-            {revealed ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
         </div>
       </div>
       <div className="flex items-flex-end justify-center gap-3">

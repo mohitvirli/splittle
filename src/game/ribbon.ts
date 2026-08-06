@@ -49,8 +49,14 @@ export function mask(chain: readonly LandedWord[]): string {
   return [...ribbon].map((letter, i) => (seed.has(i) ? letter : BLOCK)).join('')
 }
 
+/** Where a reader who has just been sent a chain goes to play it. */
+export const HOME = 'splittle.clevir.li'
+
 /**
  * The card. Tiers run 4, 3, 2 — the same order as the sections, so the rows tighten downward.
+ *
+ * Blank lines above and below the rows: pasted into a chat the ribbons are the picture, and
+ * they only read as one if the title and the link are not crowding them.
  *
  * `revealed` is the toggle the results screen owns: the masked ribbon is what leaves by
  * default, because the unmasked one is the answer. CONTROLEARN is CONTROL and LEARN to anyone
@@ -62,5 +68,5 @@ export function shareText(puzzleNo: number, chains: Chains, revealed = false): s
     return chain && chain.length > 0 ? (revealed ? weld(chain) : mask(chain)) : null
   }).filter((row): row is string => row !== null)
 
-  return [`splittle No. ${puzzleNo}`, ...rows].join('\n')
+  return [`splittle No. ${puzzleNo}`, '', ...rows, '', HOME].join('\n')
 }

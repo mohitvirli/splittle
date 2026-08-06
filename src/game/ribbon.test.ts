@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mask, seedPositions, shareText, weld } from './ribbon'
+import { HOME, mask, seedPositions, shareText, weld } from './ribbon'
 import type { LandedWord } from '../engine/types'
 
 const played = (word: string, from: number, chunkEnd: number, landedAt: number): LandedWord => ({
@@ -71,7 +71,15 @@ describe('mask', () => {
 describe('shareText', () => {
   it('leads with the puzzle number and masks by default', () => {
     expect(shareText(1, { 4: CLEAN_4, 3: CLEAN_3, 2: CLEAN_2 })).toBe(
-      ['splittle No. 1', 'C█████L██E███A████N', 'C█████L██EA████N', 'C█████LEA█N'].join('\n'),
+      [
+        'splittle No. 1',
+        '',
+        'C█████L██E███A████N',
+        'C█████L██EA████N',
+        'C█████LEA█N',
+        '',
+        HOME,
+      ].join('\n'),
     )
   })
 
@@ -82,6 +90,17 @@ describe('shareText', () => {
   })
 
   it('skips a tier with no chain rather than leaving a hole', () => {
-    expect(shareText(2, { 4: CLEAN_4 })).toBe(['splittle No. 2', 'C█████L██E███A████N'].join('\n'))
+    expect(shareText(2, { 4: CLEAN_4 })).toBe(
+      ['splittle No. 2', '', 'C█████L██E███A████N', '', HOME].join('\n'),
+    )
+  })
+
+  /* The blank lines are the layout, so they are worth pinning: a chat client collapsing them
+     would run the title into the first ribbon. */
+  it('sets the rows off from the title and the link', () => {
+    const lines = shareText(2, { 4: CLEAN_4 }).split('\n')
+    expect(lines[1]).toBe('')
+    expect(lines[lines.length - 2]).toBe('')
+    expect(lines[lines.length - 1]).toBe(HOME)
   })
 })

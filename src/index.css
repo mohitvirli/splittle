@@ -40,6 +40,42 @@
   /* Replaced at runtime with the visual viewport's height — see useViewportHeight. The
      dvh fallback covers first paint and anything without visualViewport. */
   --app-height: 100dvh;
+
+  /* A corner rounded the only way a pixel grid can round one: a three-tread
+     staircase, 4px to a tread, turning a 12px radius. Held here because the
+     panel's frame and its shadow are three separate boxes that all have to be
+     cut to the identical outline — percentages resolve against whichever box
+     it is applied to, which is what makes one definition serve all three. */
+  --pixel-staircase: polygon(
+    0 12px,
+    4px 12px,
+    4px 8px,
+    8px 8px,
+    8px 4px,
+    12px 4px,
+    12px 0,
+    calc(100% - 12px) 0,
+    calc(100% - 12px) 4px,
+    calc(100% - 8px) 4px,
+    calc(100% - 8px) 8px,
+    calc(100% - 4px) 8px,
+    calc(100% - 4px) 12px,
+    100% 12px,
+    100% calc(100% - 12px),
+    calc(100% - 4px) calc(100% - 12px),
+    calc(100% - 4px) calc(100% - 8px),
+    calc(100% - 8px) calc(100% - 8px),
+    calc(100% - 8px) calc(100% - 4px),
+    calc(100% - 12px) calc(100% - 4px),
+    calc(100% - 12px) 100%,
+    12px 100%,
+    12px calc(100% - 4px),
+    8px calc(100% - 4px),
+    8px calc(100% - 8px),
+    4px calc(100% - 8px),
+    4px calc(100% - 12px),
+    0 calc(100% - 12px)
+  );
 }
 
 html,
@@ -211,55 +247,46 @@ body {
   }
 }
 
-/* ── Notched panel ──────────────────────────────────────────────────────────
-   The button's chassis at panel scale, framed rather than raised. Corners step
-   8px rather than 5px — a notch is read relative to the box it is cut from,
-   and 5px on something this wide reads as a rounding error.
-
+/* ── Stepped panel ──────────────────────────────────────────────────────────
    The frame is two boxes, not a border: clip-path cuts a stroke along with
-   everything else, so a real border would be sliced open at all four notches.
-   The outer box is ink, the inner one paper inset 2px, each clipped to its own
-   polygon.
-
-   Both notches are 8px. Insetting a notched rectangle moves the step corner
-   inward on both axes at once, so measured from the inner box's own origin the
-   notch comes out the same size it started — shrinking it to 6px lands the
-   paper exactly on the ink step and eats the frame at all four corners. */
+   everything else, so a real border would be sliced open at every tread. The
+   outer box carries the frame colour, the inner one paper, inset by the frame's
+   width. Both take the same --pixel-staircase — insetting a staircase shifts
+   each tread inward on both axes at once, so measured from the inner box's own
+   origin the treads land exactly where they started and the frame holds one
+   width the whole way round, corners included. */
 @utility pixel-panel {
   border-radius: 0;
-  background: var(--color-ink);
+  background: var(--color-ink-soft);
   padding: 2px;
-  clip-path: polygon(
-    0 8px,
-    8px 8px,
-    8px 0,
-    calc(100% - 8px) 0,
-    calc(100% - 8px) 8px,
-    100% 8px,
-    100% calc(100% - 8px),
-    calc(100% - 8px) calc(100% - 8px),
-    calc(100% - 8px) 100%,
-    8px 100%,
-    8px calc(100% - 8px),
-    0 calc(100% - 8px)
-  );
+  position: relative;
+  clip-path: var(--pixel-staircase);
 
   & > * {
     background: var(--color-paper);
-    clip-path: polygon(
-      0 8px,
-      8px 8px,
-      8px 0,
-      calc(100% - 8px) 0,
-      calc(100% - 8px) 8px,
-      100% 8px,
-      100% calc(100% - 8px),
-      calc(100% - 8px) calc(100% - 8px),
-      calc(100% - 8px) 100%,
-      8px 100%,
-      8px calc(100% - 8px),
-      0 calc(100% - 8px)
-    );
+    clip-path: var(--pixel-staircase);
+  }
+}
+
+/* The panel's own clip-path would cut away a pseudo-element of its own, so the
+   cast hangs off a wrapper — same arrangement as the buttons, and the same
+   reason: drop-shadow renders displaced on iOS Safari over a clipped subtree.
+
+   4px is deliberate rather than merely small. It is one tread, so the offset
+   copy lands its diagonal exactly on the original's, and the cast neither shows
+   through the panel's own cut corners nor pokes out along the run. Any offset
+   off the tread grid frays that diagonal. */
+@utility pixel-panel-lift {
+  position: relative;
+  display: block;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--color-cast);
+    transform: translate(4px, 4px);
+    clip-path: var(--pixel-staircase);
   }
 }
 
