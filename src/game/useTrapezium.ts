@@ -98,12 +98,16 @@ export function useTrapezium() {
    *
    * The completion needs the dictionary to tell a real word from a fragment, so until it has
    * loaded this is the pivot alone. Nothing can be submitted in that window anyway.
+   *
+   * The tier goes in with it: a completion is only worth making if the round would take it,
+   * and on the last word that means reaching the seed's final letter rather than the nearest
+   * one. Otherwise the box shows a letter Enter will refuse.
    */
   const effective = useMemo(() => {
     const typed = withPivot(round, draft)
     if (!dict) return typed
-    return withLanding(round, typed, (w) => dict.has(w))
-  }, [round, draft, dict])
+    return withLanding(round, typed, (w) => dict.has(w), tier)
+  }, [round, draft, dict, tier])
 
   /** How far the word runs along the seed from the cursor. */
   const matched = useMemo(() => seedMatchLength(round, effective), [round, effective])
