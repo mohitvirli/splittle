@@ -139,3 +139,25 @@ export function LockIcon({ className = '' }: IconProps) {
     </svg>
   )
 }
+
+/**
+ * A note worth reading, drawn on the grid the type is.
+ *
+ * Whole squares and crispEdges, so none of them is resampled into grey — a bang with a soft
+ * edge would be the one antialiased thing on a screen full of pixels. Bare rather than badged:
+ * at the size this sits, a knocked-out mark inside a blob is a blob.
+ */
+export function BangIcon({ className = '' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 4 12"
+      fill="currentColor"
+      shapeRendering="crispEdges"
+      aria-hidden
+      className={`h-4 w-[0.34rem] ${className}`}
+    >
+      <rect x="1" y="0" width="2" height="7" />
+      <rect x="1" y="9" width="2" height="3" />
+    </svg>
+  )
+}

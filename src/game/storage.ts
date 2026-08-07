@@ -116,6 +116,28 @@ export function saveProgress(progress: Progress): void {
   }
 }
 
+/** Set the first time the rules have been shown. Kept apart from progress: it survives a
+ *  cleared day, and a reader who has never seen the rules is not a player with no streak. */
+const HELPED_KEY = 'splittle.helped'
+
+/** Has this reader been shown how the game works? False on a first visit, and after a wipe. */
+export function helpSeen(): boolean {
+  try {
+    return localStorage.getItem(HELPED_KEY) === '1'
+  } catch {
+    // No storage to read means no way to remember either — better to teach twice than never.
+    return false
+  }
+}
+
+export function markHelpSeen(): void {
+  try {
+    localStorage.setItem(HELPED_KEY, '1')
+  } catch {
+    // Private browsing. They get the rules again next time, which is the safe way to fail.
+  }
+}
+
 export const allTiersWon = (progress: Progress): boolean =>
   TIERS.every((tier) => progress.tiersWon[tier])
 

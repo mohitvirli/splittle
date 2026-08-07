@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { motion } from '../game/motion'
+import { Demo } from './Demo'
 
 gsap.registerPlugin(useGSAP)
 
@@ -53,8 +54,8 @@ export function HelpDialog({ open, onClose }: Props) {
     { dependencies: [open, rendered], scope: root },
   )
 
-  // Backdrop click, the × button and Escape all funnel through here — every way out plays
-  // the same close, then unmounts once it has actually finished closing.
+  // A click outside the card, the × button and Escape all funnel through here — every way out
+  // plays the same close, then unmounts once it has actually finished closing.
   const close = contextSafe(() => {
     const t = motion()
     gsap
@@ -68,72 +69,58 @@ export function HelpDialog({ open, onClose }: Props) {
 
   return (
     <div ref={root} className="fixed inset-0 z-[60]">
+      {/* Enough to push the game back a step and no more: the board behind is part of what
+          the tutorial is talking about, so it stays legible rather than being blacked out. */}
       <div
         ref={backdrop}
-        className="absolute inset-0 bg-[color:var(--color-night)]/70 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-[color:var(--color-night)]/20 backdrop-blur-[2px]"
         onClick={close}
       />
       <div className="flex h-full items-center justify-center px-4" onClick={close}>
+        {/* Cut the way the share card is: a stepped frame with its own cast, rather than a
+            rounded rectangle under a soft shadow. Three boxes — the lift carries the shadow,
+            the panel the frame, and the innermost one the paper the content sits on — because
+            a clip-path cuts a border and a pseudo-element along with everything else. */}
         <div
           ref={card}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="w-full max-w-[24rem] rounded-[1.4rem] border border-rule bg-[color:var(--color-paper)] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)]"
+          className="pixel-panel-lift w-full max-w-[24rem]"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="label">How it works</p>
-              <h2 id={titleId} className="mt-1 font-display text-xl tracking-[0.02em]">
-                Make a chain
+          <div className="pixel-panel">
+            <div className="relative px-5 pt-5 pb-4">
+              {/* Bare. It is the way out of a dialog nobody is being kept in, and a frame
+                  around it put it in competition with the button meant to be pressed. */}
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close help"
+                className="absolute top-3 right-3 flex h-8 w-8 touch-manipulation items-center justify-center font-body text-base leading-none text-ink-soft transition-colors duration-200 hover:text-ink"
+              >
+                ×
+              </button>
+
+              <h2 id={titleId} className="font-display text-xl tracking-[0.02em]">
+                How to play
               </h2>
-            </div>
-            <button
-              type="button"
-              onClick={close}
-              aria-label="Close help"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rule text-lg leading-none text-ink-soft transition-colors hover:border-ink hover:text-ink"
-            >
-              ×
-            </button>
-          </div>
 
-          <div className="mt-4 space-y-3 text-sm leading-6 text-ink-soft">
-            <p>
-              Build a chain of real words that move across the seed, using each word to advance the current landing point and finish the required tier in exactly 4, 3, or 2 words.
-            </p>
+              {/* One sentence, and then the demo does the rest. Everything this used to say in
+                  prose — where a word starts, where it lands, why a shorter chain needs longer
+                  chunks — is a thing the steps below show happening. */}
+              <p className="mt-2 pr-10 text-sm leading-6 text-ink-soft">
+                Split the five-letter word of the day into a group of words — 4, then 3, then
+                2. If the word is{' '}
+                <span className="font-display tracking-[0.06em] text-ink">PLANT</span>:
+              </p>
 
-            <div className="rounded-2xl border border-rule bg-[color:var(--color-paper-deep)] p-3">
-              <p className="font-medium text-ink">If the seed is <span className="font-semibold text-ink">PLANT</span>, these are the options:</p>
-              <div className="mt-3 space-y-2 text-sm">
-                <div className="font-display text-sm tracking-[0.08em]">
-                  <span className="font-semibold text-accent">4 words</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">P</span><span className="text-ink-faint">EARL</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">L</span><span className="text-ink-faint">AVA</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">A</span><span className="text-ink-faint">PRON</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">NIGHT</span>
-                </div>
-                <div className="font-display text-sm tracking-[0.08em]">
-                  <span className="font-semibold text-accent">3 words</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">PL</span><span className="text-ink-faint">ASMA</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">A</span><span className="text-ink-faint">PRON</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">NIGHT</span>
-                </div>
-                <div className="font-display text-sm tracking-[0.08em]">
-                  <span className="font-semibold text-accent">2 words</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">PL</span><span className="text-ink-faint">ASMA</span>{' '}
-                  <span className="text-ink">·</span>{' '}
-                  <span className="text-accent">A</span><span className="text-ink-faint">CCOUNT</span>
-                </div>
+              {/* The sentence sets the puzzle up; everything under the rule is the worked
+                  example. Different kinds of thing, so they get a line between them. */}
+              <hr className="mt-4 border-0 border-t border-rule" />
+
+              <div className="mt-4">
+                <Demo onDone={close} />
               </div>
             </div>
           </div>

@@ -24,6 +24,11 @@
   --color-rule: oklch(0.855 0.02 76);
   --color-accent: oklch(0.48 0.075 142);
   --color-accent-soft: oklch(0.62 0.065 142);
+  /* The sage laid on so thin it is still paper — a panel fill, not a mark.
+     Mixed from the accent rather than picked by eye: a green chosen on its own
+     comes out cooler than everything around it, because every other colour here
+     is pulled toward the paper's warmth and that one would not be. */
+  --color-accent-wash: color-mix(in oklab, var(--color-accent) 11%, var(--color-paper));
   /* Every pixel button casts this same shadow, whatever it is filled with.
      Sitting between ink and ink-soft, it is dark enough to hold under the pale
      fills and light enough not to swallow the sage. */
@@ -46,6 +51,24 @@
      panel's frame and its shadow are three separate boxes that all have to be
      cut to the identical outline — percentages resolve against whichever box
      it is applied to, which is what makes one definition serve all three. */
+  /* The button's corner: one 5px step, not a staircase. Held here because the
+     filled chassis, the outlined one and its frame are separate boxes that all
+     have to be cut to the identical silhouette. */
+  --pixel-notch-cut: polygon(
+    0 5px,
+    5px 5px,
+    5px 0,
+    calc(100% - 5px) 0,
+    calc(100% - 5px) 5px,
+    100% 5px,
+    100% calc(100% - 5px),
+    calc(100% - 5px) calc(100% - 5px),
+    calc(100% - 5px) 100%,
+    5px 100%,
+    5px calc(100% - 5px),
+    0 calc(100% - 5px)
+  );
+
   --pixel-staircase: polygon(
     0 12px,
     4px 12px,
@@ -189,6 +212,58 @@ body {
 @utility pixel-quiet {
   background: var(--color-paper-deep);
   color: var(--color-ink);
+}
+
+/* ── Outlined notch ─────────────────────────────────────────────────────────
+   The same silhouette drawn as a line rather than a slab, for the controls
+   that sit inside a card and would shout with a cast under them.
+
+   The frame is two boxes, not a border — the reason `pixel-panel` gives, at
+   the button's scale: clip-path cuts a stroke along with the box, so a real
+   border comes out sliced open at every notch. The outer box carries the line
+   colour, the inner one the fill, inset by the frame's width. Inset once, both
+   axes at a time, which is what leaves the treads where they started.
+
+   Pressed, the whole thing steps down 2px. There is no cast to answer, so the
+   travel is the press. */
+@utility pixel-outline {
+  --frame: var(--color-ink);
+  --fill: var(--color-paper);
+  border-radius: 0;
+  display: inline-block;
+  line-height: 0;
+  background: var(--frame);
+  padding: 2px;
+  clip-path: var(--pixel-notch-cut);
+
+  & > * {
+    background: var(--fill);
+    clip-path: var(--pixel-notch-cut);
+    color: var(--frame);
+  }
+
+  &:has(:active) {
+    transform: translate(2px, 2px);
+  }
+}
+
+/* The same frame in sage, filled with the wash: what the tutorial's hint sits
+   in, so a line of coaching reads as a note rather than as more caption. */
+@utility pixel-hint {
+  /* Both drawn off the accent, so the note is one colour at two strengths rather
+     than two greens that have to agree with each other. */
+  --frame: color-mix(in oklab, var(--color-accent) 45%, var(--color-paper));
+  --fill: var(--color-accent-wash);
+  border-radius: 0;
+  display: block;
+  background: var(--frame);
+  padding: 2px;
+  clip-path: var(--pixel-notch-cut);
+
+  & > * {
+    background: var(--fill);
+    clip-path: var(--pixel-notch-cut);
+  }
 }
 
 /* The shadow is a second box, not an effect. box-shadow draws off the unclipped

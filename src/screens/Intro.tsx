@@ -27,6 +27,8 @@ interface Props {
   /** The playing screen's field. Focused on the Play tap — see start(). */
   inputRef: React.RefObject<HTMLInputElement | null>
   onOpenHelp: () => void
+  /** Nobody has read the rules yet, so Play shows them on its way into the game. */
+  teachOnPlay: boolean
 }
 
 /**
@@ -36,7 +38,7 @@ interface Props {
  * middle of the page and flown back to the header on Play. That is what keeps the handover
  * free of a swap between a stand-in and the real thing.
  */
-export function Intro({ onDone, inputRef, onOpenHelp }: Props) {
+export function Intro({ onDone, inputRef, onOpenHelp, teachOnPlay }: Props) {
   const root = useRef<HTMLDivElement>(null)
   const leaving = useRef(false)
 
@@ -109,8 +111,13 @@ export function Intro({ onDone, inputRef, onOpenHelp }: Props) {
        the activation this tap granted is gone by then and the request is ignored, which is
        why the game used to open with the caret blinking and no keyboard. The field is
        still behind the title here, but it carries its own `visible` so it can take focus
-       anyway. */
-    inputRef.current?.focus()
+       anyway.
+
+       Unless the rules are about to cover the game: a keyboard raised behind a dialog is a
+       keyboard in the way, and it would take the room the dialog needs. Closing the rules is
+       itself a tap, so App focuses the field from there instead. */
+    if (teachOnPlay) onOpenHelp()
+    else inputRef.current?.focus()
 
     const title = masthead()
     const t = motion()
@@ -128,42 +135,36 @@ export function Intro({ onDone, inputRef, onOpenHelp }: Props) {
 
   return (
     <div ref={root} className="fixed inset-0 z-30">
-      <p
-        data-intro-action
-        className="absolute top-[calc(36vh+2.5rem)] left-1/2 -translate-x-1/2 whitespace-nowrap font-body text-sm text-ink-soft"
-      >
-        Split the word into a chain
-      </p>
+      {/* One column under the wordmark rather than three offsets measured from it. */}
+      <div className="absolute top-[calc(36vh+2.25rem)] left-1/2 flex w-full max-w-[22rem] -translate-x-1/2 flex-col items-center gap-6 px-6">
+        <p data-intro-action className="font-body text-sm whitespace-nowrap text-ink-soft">
+          Split the word into a chain
+        </p>
 
-      {/* The intro's tween targets the wrapper, not the button: GSAP owns the transform
-          on one and the press owns it on the other, so neither overwrites the other. */}
-      <span
-        data-intro-action
-        className="pixel-notch-lift absolute top-[calc(36vh+5.25rem)] left-1/2 -translate-x-1/2"
-      >
-        <button
-          type="button"
-          onClick={start}
-          autoFocus
-          className="pixel-notch pixel-accent touch-manipulation px-6 py-3.5"
-        >
-          Play →
-        </button>
-      </span>
+        {/* The intro's tween targets the wrapper, not the button: GSAP owns the transform
+            on one and the press owns it on the other, so neither overwrites the other. */}
+        <span data-intro-action className="pixel-notch-lift">
+          <button
+            type="button"
+            onClick={start}
+            autoFocus
+            className="pixel-notch pixel-accent touch-manipulation px-6 py-3.5"
+          >
+            Play →
+          </button>
+        </span>
 
-      <span
-        data-intro-action
-        className="pixel-notch-lift absolute top-[calc(36vh+9.5rem)] left-1/2 -translate-x-1/2"
-      >
-        <button
-          type="button"
-          onClick={onOpenHelp}
-          aria-label="Open help"
-          className="pixel-notch pixel-quiet touch-manipulation px-5 py-3"
-        >
-          How to play
-        </button>
-      </span>
+        <span data-intro-action className="pixel-notch-lift">
+          <button
+            type="button"
+            onClick={onOpenHelp}
+            aria-label="Open help"
+            className="pixel-notch pixel-quiet touch-manipulation px-5 py-3"
+          >
+            How to play
+          </button>
+        </span>
+      </div>
     </div>
   )
 }
