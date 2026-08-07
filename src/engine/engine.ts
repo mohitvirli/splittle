@@ -157,11 +157,29 @@ export function withPivot(state: RoundState, rawDraft: string): string {
  * A draft that already lands is taken at face value and returned untouched, which keeps every
  * word that worked before working unchanged. Only one that goes nowhere is completed, and the
  * shortest completion wins, so the letter inferred is the nearest one — the one on screen.
+ *
+ * `target` is the tier's word count, and it is what makes the letters inferred the ones the
+ * player is actually being shown. A landing the round would reject is not a landing worth
+ * putting in their mouth: on BEARD after BEE, with one word left, EARNE must not become
+ * EARNER — that R lands on the seed but leaves the round unfinishable, so the box would be
+ * holding out a letter Enter refuses. Judged against the target it reaches EARNED instead.
+ * Omit it and only the landing is required, which is the raw shape of the move.
  */
-export function withLanding(state: RoundState, rawDraft: string, dict: Dict): string {
+export function withLanding(
+  state: RoundState,
+  rawDraft: string,
+  dict: Dict,
+  target?: number,
+): string {
+  const accepted = (candidate: string) => {
+    const { result } =
+      target === undefined ? resolve(state, candidate, dict) : judge(state, candidate, dict, target)
+    return result.kind === 'LANDED'
+  }
+
   const word = rawDraft.trim().toUpperCase()
   if (!word || state.solved) return word
-  if (resolve(state, word, dict).result.kind === 'LANDED') return word
+  if (accepted(word)) return word
 
   /* Nothing of the player's own yet — the draft is still running along the seed. Completing
      here would hand back a word made only of seed letters: on STONE a bare S becomes ST,
@@ -179,7 +197,7 @@ export function withLanding(state: RoundState, rawDraft: string, dict: Dict): st
       if (m > seed.length - 1) break
       if (!word.startsWith(seed.slice(currentPos, chunkEnd + 1))) break
       const candidate = word + seed.slice(chunkEnd + 1, m + 1)
-      if (resolve(state, candidate, dict).result.kind === 'LANDED') return candidate
+      if (accepted(candidate)) return candidate
     }
   }
   return word

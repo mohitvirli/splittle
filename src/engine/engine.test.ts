@@ -373,6 +373,31 @@ describe('withLanding — the landing is assumed, not demanded', () => {
       expect(withLanding(state, withPivot(state, typed), dict), typed).toBe('PEARL')
     }
   })
+
+  it('only completes to a landing the target would take', () => {
+    // BEARD in two: BEE lands on the first E, so the word left has to reach the D.
+    const beard = applyResult(createRound('BEARD'), submit(createRound('BEARD'), 0, 'BEE', dict))
+    expect(beard.currentPos).toBe(1)
+
+    // EARNER lands — on the R — so without the target it is the nearest completion, and the
+    // R appears in the box as a letter the player never typed and Enter will not accept.
+    expect(withLanding(beard, 'EARNE', dict)).toBe('EARNER')
+    expect(judge(beard, 'EARNER', dict, 2).result).toEqual({ kind: 'MUST_FINISH' })
+
+    // Judged against the target it reaches past that R to the D the box is holding out.
+    expect(withLanding(beard, 'EARNE', dict, 2)).toBe('EARNED')
+    expect(judge(beard, 'EARNED', dict, 2).result).toMatchObject({
+      kind: 'LANDED',
+      word: { word: 'EARNED', landedAt: 4 },
+    })
+  })
+
+  it('leaves a draft alone when no completion the target takes exists', () => {
+    // EARN itself lands on the R, which the last word may not do, and nothing in the seed
+    // completes it any further. The draft comes back untouched so `judge` can say why.
+    const beard = applyResult(createRound('BEARD'), submit(createRound('BEARD'), 0, 'BEE', dict))
+    expect(withLanding(beard, 'EARN', dict, 2)).toBe('EARN')
+  })
 })
 
 describe('seedMatchLength — how far the gap slides', () => {
