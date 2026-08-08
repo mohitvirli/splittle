@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEMO_SEED, DEMO_STEPS, stepBeats, stepDuration } from './demo'
+import { DEMO_SEED, DEMO_STEPS, restFrame, stepBeats, stepDuration, stepLoops } from './demo'
 import { judge } from '../engine/engine'
 import type { Dict, LandedWord, RoundState } from '../engine/types'
 import { gameWords } from '../../scripts/solver.ts'
@@ -78,7 +78,7 @@ describe('a step', () => {
     for (let i = 1; i < beats.length; i++) {
       expect(beats[i].at).toBeGreaterThan(beats[i - 1].at)
     }
-    expect(stepDuration(step, beats)).toBeGreaterThan(beats[beats.length - 1].at)
+    expect(stepDuration(beats)).toBeGreaterThan(beats[beats.length - 1].at)
 
     // It opens on the board the step before it left behind, and closes with its words played
     // — bar a held step, whose last word is still standing in the box rather than on the
@@ -86,6 +86,29 @@ describe('a step', () => {
     expect(beats[0].frame.words).toEqual(step.before)
     const played = step.hold ? step.play.slice(0, -1) : step.play
     expect(beats[beats.length - 1].frame.words).toEqual([...step.before, ...played])
+  })
+
+  it('plays again if it has anything to play', () => {
+    for (const step of DEMO_STEPS) {
+      expect(stepLoops(step), step.caption).toBe(step.play.length > 0)
+    }
+  })
+
+  it('rests on the word it teaches, not on the seam it loops back through', () => {
+    for (const step of DEMO_STEPS) {
+      const beats = stepBeats(step)
+      const rest = restFrame(beats)
+      const taught = step.play.at(-1)
+
+      if (step.hold && taught) {
+        // The word is still standing in the box, which is the whole point of a held step —
+        // the frames after it are the erase back to the pivot and must not be what is shown.
+        expect(rest.effective, step.caption).toBe(taught.word)
+      } else {
+        // Nothing to walk back through, so the step ends where it rests.
+        expect(rest, step.caption).toEqual(beats[beats.length - 1].frame)
+      }
+    }
   })
 
   it('types out of the seed letters the word starts on, never past its landing', () => {

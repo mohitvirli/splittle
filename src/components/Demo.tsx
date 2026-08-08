@@ -4,7 +4,7 @@ import { useGSAP } from '@gsap/react'
 import { BangIcon } from './icons'
 import { ChainWord } from './WordChain'
 import { WordDisplay } from './WordDisplay'
-import { DEMO_SEED, DEMO_STEPS, stepBeats, stepDuration } from '../game/demo'
+import { DEMO_SEED, DEMO_STEPS, restFrame, stepBeats, stepDuration, stepLoops } from '../game/demo'
 import { motion } from '../game/motion'
 
 gsap.registerPlugin(useGSAP)
@@ -14,10 +14,10 @@ gsap.registerPlugin(useGSAP)
  *
  * Every frame goes through the game's own WordDisplay and ChainWord, driven by the same shape
  * of state a real round hands them — so the tutorial cannot drift into showing a board the
- * game does not draw. Each step plays its own words out and then stops: the reader moves on
- * when they are ready, which is the whole reason this is stepped rather than looped.
+ * game does not draw. Each step plays its own words out and then plays them again; only the
+ * reader moves the tutorial on, which is why this is stepped rather than one long run.
  *
- * Reduced motion opens every step on its finished board. The steps and their captions are
+ * Reduced motion opens every step on its resting board. The steps and their captions are
  * unchanged; only the typing is skipped.
  */
 export function Demo({ onDone }: { onDone?: () => void }) {
@@ -39,9 +39,14 @@ export function Demo({ onDone }: { onDone?: () => void }) {
     () => {
       if (still) return
       const t = motion()
-      const tl = gsap.timeline({ repeat: step.loop ? -1 : 0 })
+      // Every step that types plays again rather than freezing on its last frame. The first
+      // beat sits at time 0, which a repeat skips over, so the wrap resets the board itself.
+      const tl = gsap.timeline({
+        repeat: stepLoops(step) ? -1 : 0,
+        onRepeat: () => setFrameIndex(0),
+      })
       // Padded to the whole step first, so its last frame is held rather than cut short.
-      tl.to({}, { duration: (stepDuration(step, beats) * t) / 1000 }, 0)
+      tl.to({}, { duration: (stepDuration(beats) * t) / 1000 }, 0)
       for (const [i, beat] of beats.entries()) {
         tl.call(() => setFrameIndex(i), undefined, (beat.at * t) / 1000)
       }
@@ -49,7 +54,7 @@ export function Demo({ onDone }: { onDone?: () => void }) {
     { dependencies: [step, beats, still], scope: root, revertOnUpdate: true },
   )
 
-  const frame = beats[still ? beats.length - 1 : Math.min(frameIndex, beats.length - 1)].frame
+  const frame = still ? restFrame(beats) : beats[Math.min(frameIndex, beats.length - 1)].frame
 
   return (
     <div ref={root} className="flex w-full flex-col items-center gap-3">

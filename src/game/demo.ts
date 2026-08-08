@@ -52,15 +52,16 @@ export interface DemoStep {
    * the board keeps showing [PLASMA]NT until they ask for the next step.
    */
   hold?: boolean
-  /**
-   * Play the step over and over rather than once.
-   *
-   * The opening step is the one nobody has been taught anything by yet, so it repeats: the
-   * board keeps returning to [P_L] and making the same word, and a reader who looked away
-   * gets it again without having to find a control.
-   */
-  loop?: boolean
 }
+
+/**
+ * Whether the step has anything to play over and over.
+ *
+ * Every step that types repeats. A reader who looked away, or who arrived at the step mid-word,
+ * gets the move again without having to find a control — and the steps that only talk have no
+ * motion to loop, so they sit still on the board they are describing.
+ */
+export const stepLoops = (step: DemoStep): boolean => step.play.length > 0
 
 export const DEMO_STEPS: DemoStep[] = [
   {
@@ -70,7 +71,6 @@ export const DEMO_STEPS: DemoStep[] = [
     before: [],
     play: [PEARL],
     hold: true,
-    loop: true,
   },
   {
     label: '4 words',
@@ -95,7 +95,6 @@ export const DEMO_STEPS: DemoStep[] = [
     before: [],
     play: [PLASMA],
     hold: true,
-    loop: true,
   },
   {
     label: '3 or 2 words',
@@ -130,23 +129,38 @@ export interface DemoFrame {
 export interface DemoBeat {
   /** Milliseconds from the top of the step, before `motion()` scales it. */
   at: number
+  /** How long this frame is held. The last one's is the step's tail before it plays again. */
+  hold: number
+  /**
+   * Part of the walk back to the top of the loop rather than part of the lesson.
+   *
+   * A reader with motion off is shown the step's resting board, which is the last frame that
+   * is not one of these — otherwise the held steps would open on the bare pivot they erase
+   * back to rather than on the word they exist to show.
+   */
+  seam?: true
   frame: DemoFrame
 }
 
 /* Unscaled. Every one is multiplied by motion(), and a reduced-motion reader never reaches
-   the timeline at all — the step opens on its finished state. */
-const PIVOT_HOLD = 420
-const TYPE = 130
-const LAND_HOLD = 800
-const COMMIT_HOLD = 320
+   the timeline at all — the step opens on its resting frame.
+
+   Slow on purpose: these play under a caption someone is reading for the first time, and the
+   loop means nothing here is the reader's only chance to see it. */
+const PIVOT_HOLD = 640
+const TYPE = 200
+const LAND_HOLD = 1150
+const COMMIT_HOLD = 460
 /** A step with nothing to type is one frame long — held only so the timeline has a length. */
-const STILL_HOLD = 600
-/** How long a looping step sits on its finished word before it starts taking it back. */
-const LOOP_HOLD = 1100
+const STILL_HOLD = 900
+/** How long a held step sits on its finished word before it starts taking it back. */
+const LOOP_HOLD = 1700
+/** How long a step that commits its last word rests on the finished board before starting over. */
+const LOOP_END_HOLD = 1700
 /** Backspacing is quicker than typing — it is the reset, not part of the lesson. */
-const ERASE = 70
+const ERASE = 110
 /** The beat on the bare pivot at the bottom of the loop, before the word is made again. */
-const LOOP_TAIL = 420
+const LOOP_TAIL = 620
 
 /**
  * One step, as a list of (time, board) pairs.
@@ -162,8 +176,8 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
 
   const cursor = () => (played.length === 0 ? 0 : played[played.length - 1].landedAt)
 
-  const push = (frame: Omit<DemoFrame, 'words'>, ms: number) => {
-    beats.push({ at: clock, frame: { ...frame, words: [...played] } })
+  const push = (frame: Omit<DemoFrame, 'words'>, ms: number, seam?: true) => {
+    beats.push({ at: clock, hold: ms, seam, frame: { ...frame, words: [...played] } })
     clock += ms
   }
 
@@ -189,6 +203,7 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
   }
 
   for (const [index, entry] of step.play.entries()) {
+    const lastOfStep = index === step.play.length - 1
     const mustFinish = played.length + 1 === step.target
     const landing = seed.slice(entry.chunkEnd + 1, entry.landedAt + 1)
     // The letters the player would actually type. The landing is assumed for them — the box
@@ -213,23 +228,22 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
         mustFinish,
         solved: false,
       },
-      step.loop ? LOOP_HOLD : LAND_HOLD,
+      step.hold && lastOfStep ? LOOP_HOLD : LAND_HOLD,
     )
 
     // Held: the word stays in the box, and the step ends looking at it. The next step opens
     // with it committed to the chain, so nothing is lost by not committing here.
-    if (step.hold && index === step.play.length - 1) {
-      // A looping step takes its own word back a letter at a time rather than blinking back
-      // to the pivot — the same hand that typed it, in reverse, so the loop has a seam.
-      if (step.loop) {
-        for (let k = typed.length - 1; k >= 2; k--) {
-          push(
-            { ...waiting(mustFinish), effective: typed.slice(0, k), matched: matchedFor(typed.slice(0, k)) },
-            ERASE,
-          )
-        }
-        push(waiting(mustFinish), LOOP_TAIL)
+    if (step.hold && lastOfStep) {
+      // The step takes its own word back a letter at a time rather than blinking back to the
+      // pivot — the same hand that typed it, in reverse, so the loop has a seam.
+      for (let k = typed.length - 1; k >= 2; k--) {
+        push(
+          { ...waiting(mustFinish), effective: typed.slice(0, k), matched: matchedFor(typed.slice(0, k)) },
+          ERASE,
+          true,
+        )
       }
+      push(waiting(mustFinish), LOOP_TAIL, true)
       break
     }
 
@@ -246,7 +260,9 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
         mustFinish: !solved && played.length + 1 === step.target,
         solved,
       },
-      COMMIT_HOLD,
+      // The finished board is what the step was working towards, so it is rested on before
+      // the loop takes it away and starts the chain over.
+      lastOfStep ? LOOP_END_HOLD : COMMIT_HOLD,
     )
   }
 
@@ -256,8 +272,17 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
 /**
  * Total unscaled length of a step, so the timeline can be padded out to it.
  *
- * A looping step needs the longer tail: its last frame is the finished word, and cutting
- * that short would snatch it away the moment it arrived.
+ * The tail is the last frame's own hold: whatever the step ends on — a finished board, or the
+ * bare pivot a held step erases back to — is given its time rather than cut short.
  */
-export const stepDuration = (step: DemoStep, beats: DemoBeat[]): number =>
-  beats.length === 0 ? 0 : beats[beats.length - 1].at + (step.loop ? LOOP_TAIL : COMMIT_HOLD)
+export const stepDuration = (beats: DemoBeat[]): number =>
+  beats.length === 0 ? 0 : beats[beats.length - 1].at + beats[beats.length - 1].hold
+
+/**
+ * The board the step settles on, for a reader who has motion turned off.
+ *
+ * Not simply the last frame: a held step's last frame is the bottom of its loop, and opening
+ * on that would show an empty box where the word the caption names should be.
+ */
+export const restFrame = (beats: DemoBeat[]): DemoFrame =>
+  (beats.filter((beat) => !beat.seam).at(-1) ?? beats[beats.length - 1]).frame
