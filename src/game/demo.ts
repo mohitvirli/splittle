@@ -120,7 +120,8 @@ export interface DemoFrame {
   effective: string
   /** Seed letters the word runs along from the cursor. */
   matched: number
-  preview: { chunkEnd: number; landedAt: number } | null
+  /** Every landing the tutorial shows is one the round takes — it only plays legal moves. */
+  preview: { chunkEnd: number; landedAt: number; accepted: boolean } | null
   mustFinish: boolean
   solved: boolean
   words: LandedWord[]
@@ -208,7 +209,7 @@ export function stepBeats(step: DemoStep): DemoBeat[] {
         currentPos: cursor(),
         effective: entry.word,
         matched: matchedFor(entry.word),
-        preview: { chunkEnd: entry.chunkEnd, landedAt: entry.landedAt },
+        preview: { chunkEnd: entry.chunkEnd, landedAt: entry.landedAt, accepted: true },
         mustFinish,
         solved: false,
       },

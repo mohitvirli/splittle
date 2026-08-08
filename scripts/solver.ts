@@ -146,26 +146,79 @@ export function countChains(edges: Edges, length: number, target: number, cap = 
   }
 }
 
+/**
+ * The day played end to end: a 4-, 3- and 2-word chain that share no words between them.
+ *
+ * Each target being solvable on its own is no longer enough to call a seed playable. A word
+ * spent in one round is spent for the day — USED_TODAY — so the seed has to hold three
+ * answers at once, not three answers one at a time. Null means it does not.
+ *
+ * Searched scarcest-first: two-word chains are the rare ones, so they choose their words
+ * before the four-word chain, which has the most left to pick from, gets to.
+ */
+export function disjointRun(edges: Edges, length: number, cap = 400): string[][] | null {
+  const chains = (target: number, banned: Set<string>, limit: number): string[][] => {
+    const out: string[][] = []
+    const used = new Set<string>()
+    const path: string[] = []
+
+    const walk = (pos: number, depth: number) => {
+      if (out.length >= limit) return
+      if (depth === target) {
+        if (pos === length - 1) out.push([...path])
+        return
+      }
+      for (const [landing, words] of edges[pos]) {
+        if ((landing === length - 1) !== (depth + 1 === target)) continue
+        for (const word of words) {
+          if (used.has(word) || banned.has(word)) continue
+          used.add(word)
+          path.push(word)
+          walk(landing, depth + 1)
+          path.pop()
+          used.delete(word)
+          if (out.length >= limit) return
+        }
+      }
+    }
+
+    walk(0, 0)
+    return out
+  }
+
+  for (const two of chains(2, new Set(), cap)) {
+    const afterTwo = new Set(two)
+    for (const three of chains(3, afterTwo, cap)) {
+      const [four] = chains(4, new Set([...two, ...three]), 1)
+      if (four) return [four, three, two]
+    }
+  }
+  return null
+}
+
 export interface SeedReport {
   seed: string
   tight: Record<number, ChainReport>
   wide: Record<number, ChainReport>
+  /** One way through the whole day with no word played twice, or null if there is none. */
+  run: string[][] | null
 }
 
 export function inspect(seed: string, tight: Set<string>, wide: Set<string>): SeedReport {
   const tightEdges = buildEdges(seed, tight)
   const wideEdges = buildEdges(seed, wide)
-  const report: SeedReport = { seed, tight: {}, wide: {} }
+  const report: SeedReport = { seed, tight: {}, wide: {}, run: null }
   for (const target of TARGETS) {
     report.tight[target] = countChains(tightEdges, seed.length, target)
     report.wide[target] = countChains(wideEdges, seed.length, target)
   }
+  report.run = disjointRun(wideEdges, seed.length)
   return report
 }
 
-/** Ships or it does not: every tier has to be reachable with common words. */
+/** Ships or it does not: every tier reachable with common words, and all three at once. */
 export const isPlayable = (report: SeedReport): boolean =>
-  TARGETS.every((target) => report.wide[target].count > 0)
+  TARGETS.every((target) => report.wide[target].count > 0) && report.run !== null
 
 export function readCandidates(): string[] {
   return readFileSync(CANDIDATES, 'utf8').trim().split(/\s+/).map((word) => word.toUpperCase())

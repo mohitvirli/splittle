@@ -3,6 +3,8 @@ import {
   applyResult,
   createRound,
   judge,
+  reachOf,
+  resolve,
   seedMatchLength,
   undoLast,
   withLanding,
@@ -92,6 +94,34 @@ export function useTrapezium() {
   const pivot = round.seed[round.currentPos]
 
   /**
+   * Every word the day has already spent, and the target it went into.
+   *
+   * The three targets are three ways through one seed, so a word belongs to one of them and
+   * no more: without this, the 3-word chain is the 4-word one with a join taken out, and the
+   * puzzle is asked once rather than three times.
+   *
+   * Both the live chain and the banked one, because only one of them survives a reload — a
+   * finished target keeps its words in `progress.chains`, an unfinished one only in `rounds`.
+   * Undoing a word in another target gives it back; a won target holds on to its chain until
+   * the whole puzzle is replayed.
+   *
+   * The target being played is left out of its own ban list, so replaying a finished one is
+   * not a round the player is locked out of.
+   */
+  const spentByTier = useMemo(() => {
+    const out = new Map<string, Tier>()
+    for (const t of TIERS) {
+      if (t === tier) continue
+      for (const played of [...rounds[t].words, ...(progress.chains[t] ?? [])]) {
+        out.set(played.word, t)
+      }
+    }
+    return out
+  }, [rounds, tier, progress.chains])
+
+  const spent = useMemo(() => new Set(spentByTier.keys()), [spentByTier])
+
+  /**
    * The word the engine actually sees: the pivot assumed at the front, the landing assumed
    * at the back. See `withPivot` and `withLanding` — between them, HO, SHO, HOT and SHOT all
    * reach the engine as SHOT.
@@ -106,29 +136,43 @@ export function useTrapezium() {
   const effective = useMemo(() => {
     const typed = withPivot(round, draft)
     if (!dict) return typed
-    return withLanding(round, typed, (w) => dict.has(w), tier)
-  }, [round, draft, dict, tier])
+    return withLanding(round, typed, (w) => dict.has(w), tier, spent)
+  }, [round, draft, dict, tier, spent])
 
   /** How far the word runs along the seed from the cursor. */
   const matched = useMemo(() => seedMatchLength(round, effective), [round, effective])
 
   /**
-   * How the word would land right now, or null. Turns the box active, and carries the chunk
-   * boundary so the display can tell the seed's letters from the player's.
+   * Where the word lands right now, or null — and whether the round will take it.
    *
-   * This runs the full `resolve`, dictionary included, rather than a structure-only check.
-   * A structural check makes the box flicker: typing PLASMA would activate it on PL (ends
-   * on L), drop on PLAS, and activate again on PLASMA, because those fragments land even
-   * though they are not words. The cost is that an active box also confirms the word is real.
+   * The landing lays the letters out: it carries the chunk boundary, so the display can tell
+   * the seed's letters from the player's. `accepted` is the separate question of whether Enter
+   * would have it, and only that turns the box active.
+   *
+   * Both readings run the full `resolve`, dictionary included, rather than a structure-only
+   * check. A structural check makes the box flicker: typing PLASMA would activate it on PL
+   * (ends on L), drop on PLAS, and activate again on PLASMA, because those fragments land
+   * even though they are not words. The cost is that an active box also confirms the word
+   * is real.
    */
   const preview = useMemo(() => {
     if (!dict || round.solved || effective.length < MIN_WORD_LENGTH) return null
-    const { chunkEnd, result } = judge(round, effective, (w) => dict.has(w), tier)
-    return result.kind === 'LANDED' ? { chunkEnd, landedAt: result.word.landedAt } : null
-  }, [dict, round, effective, tier])
+    const has = (w: string) => dict.has(w)
 
-  /** Nothing of the current word has been typed, so backspace steps back a word instead. */
-  const canStepBack = round.words.length > 0 && draft.length === 0
+    const judged = judge(round, effective, has, tier, spent)
+    if (judged.result.kind === 'LANDED') {
+      return { chunkEnd: judged.chunkEnd, landedAt: judged.result.word.landedAt, accepted: true }
+    }
+
+    /* Refused — but a word the round turns away still lands somewhere, and where it lands is
+       what says which letters are the seed's. Without this the box falls back to reaching for
+       a letter the word is already sitting on and shows it twice: ERAS, spent in another
+       round, drew as ERASS. Asked without the day's bookkeeping, so only the shape counts. */
+    const { chunkEnd, result } = resolve(round, effective, has)
+    return result.kind === 'LANDED'
+      ? { chunkEnd, landedAt: result.word.landedAt, accepted: false }
+      : null
+  }, [dict, round, effective, tier, spent])
 
   /**
    * One word left, so the next one has to reach the seed's last letter — the same condition
@@ -136,6 +180,28 @@ export function useTrapezium() {
    * left rather than only the nearest letter it could land on.
    */
   const mustFinish = !round.solved && round.words.length + 1 === tier
+
+  /**
+   * The word the box is actually showing: what the player has typed, plus the seed letters
+   * held out in front of them.
+   *
+   * `withLanding` already folds those letters in whenever the round would take the result,
+   * so this only differs when it would not — and that is exactly when the gap between the
+   * screen and the verdict used to open. On ESSAY, ATURDA drew as SATURDAY and came back
+   * refused as SATURDA, a word nobody typed and nobody could see. Judged as shown, the
+   * answer is about SATURDAY, which is the word that is missing from the dictionary.
+   *
+   * Only ever a refusal: a landing the round accepts is one `withLanding` would have taken,
+   * so nothing that plays reaches this, and no move changes shape because of it.
+   */
+  const shown = useMemo(() => {
+    if (!effective || round.solved || preview !== null) return effective
+    const { letters } = reachOf(round.seed, round.currentPos, effective.length, matched, mustFinish)
+    return effective + letters
+  }, [effective, round.seed, round.currentPos, round.solved, preview, matched, mustFinish])
+
+  /** Nothing of the current word has been typed, so backspace steps back a word instead. */
+  const canStepBack = round.words.length > 0 && draft.length === 0
 
   const restart = useCallback(() => {
     setRound(createRound(puzzle.seed))
@@ -166,12 +232,13 @@ export function useTrapezium() {
 
   const submitWord = useCallback(() => {
     if (!dict || round.solved) return
-    const word = effective.trim()
+    // What is on screen, not the shorthand that was typed — the pivot at the front and the
+    // seed letters held out at the back are both part of the word the player is looking at.
+    const word = shown.trim()
     if (!word) return
 
-    const { result } = judge(round, word, (w) => dict.has(w), tier)
+    const { result } = judge(round, word, (w) => dict.has(w), tier, spent)
     if (result.kind !== 'LANDED') {
-      // Report the word the engine judged, not the shorthand that was typed.
       setError({ kind: result.kind, word, nonce: performance.now() })
       return
     }
@@ -199,7 +266,7 @@ export function useTrapezium() {
         return updated
       })
     }
-  }, [dict, effective, round, setRound, tier])
+  }, [dict, shown, round, setRound, tier, spent])
 
   /**
    * Replay today, rather than sit on the results screen until tomorrow's seed arrives.
@@ -251,6 +318,8 @@ export function useTrapezium() {
     /** Seed letters still ahead of the cursor — what a word has to land on. */
     reachable: round.seed.slice(round.currentPos + 1),
     pivot,
+    /** Which target a word was spent on, for a refusal that can say where it went. */
+    spentOn: (word: string): Tier | null => spentByTier.get(word.toUpperCase()) ?? null,
     matched,
     preview,
     mustFinish,

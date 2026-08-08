@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { POOL_ENDS_ON, poolSize, poolStart, puzzleForDate, todayUTC, yesterdayOf } from './puzzles'
 import pool from './puzzles.json'
-import { TARGETS, TIGHT, WIDE, commonWords, gameWords, inspect } from '../../scripts/solver.ts'
+import {
+  TARGETS,
+  TIGHT,
+  WIDE,
+  buildEdges,
+  commonWords,
+  disjointRun,
+  gameWords,
+  inspect,
+} from '../../scripts/solver.ts'
 
 /**
  * The pool that actually shipped, re-solved from scratch.
@@ -29,6 +38,16 @@ describe('the shipped pool', () => {
     for (const target of TARGETS) {
       expect(report.wide[target].count, `${seed} has no ${target}-word chain`).toBeGreaterThan(0)
     }
+  })
+
+  /**
+   * A word spent in one round is spent for the day, so three chains that each exist on their
+   * own are not proof of a playable day — they have to exist together. A seed that only clears
+   * its last target by reusing a word is one nobody can finish, and it fails here.
+   */
+  it.each(pool.seeds)('%s can be played through without reusing a word', (seed) => {
+    const run = disjointRun(buildEdges(seed, wide), seed.length)
+    expect(run, `${seed} has no 4/3/2 run with distinct words`).not.toBeNull()
   })
 
   /**

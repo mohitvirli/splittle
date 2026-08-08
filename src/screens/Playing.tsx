@@ -6,7 +6,7 @@ import { WordChain } from '../components/WordChain'
 import { WordDisplay } from '../components/WordDisplay'
 import { motion } from '../game/motion'
 import { TIERS } from '../game/storage'
-import type { Chains } from '../game/storage'
+import type { Chains, Tier } from '../game/storage'
 import { mask, shareText, weld } from '../game/ribbon'
 import { useTrapezium } from '../game/useTrapezium'
 import { MIN_WORD_LENGTH } from '../engine/types'
@@ -27,10 +27,12 @@ interface ErrorContext {
   seed: string
   used: number
   target: number
+  /** The target the word was spent on, where that is what went wrong. */
+  spentOn: Tier | null
 }
 
 function errorText(kind: SubmitFailure, ctx: ErrorContext): string {
-  const { word, pivot, reachable, seed, used, target } = ctx
+  const { word, pivot, reachable, seed, used, target, spentOn } = ctx
   switch (kind) {
     case 'NOT_A_WORD':
       return `${word} isn’t in the dictionary.`
@@ -47,8 +49,19 @@ function errorText(kind: SubmitFailure, ctx: ErrorContext): string {
       return `It has to be longer than ${pivot}.`
     case 'ALREADY_USED':
       return `${word} is already in the chain.`
+    case 'USED_TODAY':
+      // Says which round took it. "Already played" on its own reads as a bug to a player
+      // looking at a chain the word is plainly not in — the one they can see is this one.
+      return spentOn === null
+        ? `${word} was already used in another round.`
+        : `${word} was already used in your ${spentOn}-word chain.`
     case 'CONTAINS_SEED':
       return `It can’t contain ${seed}.`
+    case 'INSIDE_SEED':
+      // Names the word, because the complaint is about that word rather than the rule: the
+      // player has typed a stretch of the seed back, and seeing PORT sitting inside SPORT is
+      // most of the explanation.
+      return `${word} is already inside ${seed}. Words have to be your own.`
     case 'ENDS_EARLY':
       return `${word} finishes on word ${used + 1}. This round needs exactly ${target}.`
     case 'MUST_FINISH':
@@ -487,6 +500,7 @@ function Banner({ game }: { game: Game }) {
           seed: game.seed,
           used: game.round.words.length,
           target: game.tier,
+          spentOn: game.spentOn(game.error.word),
         }),
       }
     : { key: `hint-${game.tier}-${left}`, alert: false, text: hint }

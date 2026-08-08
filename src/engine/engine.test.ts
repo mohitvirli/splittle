@@ -5,6 +5,7 @@ import {
   findLanding,
   judge,
   play,
+  reachOf,
   resolve,
   seedMatchLength,
   submit,
@@ -64,16 +65,6 @@ describe('the four PLANT solutions', () => {
     const state = walk([
       [1, 'PLASMA', 2],
       [2, 'ACCOUNT', 4],
-    ])
-    expect(state.solved).toBe(true)
-    expect(state.words).toHaveLength(2)
-  })
-
-  it('solves in 2: PLAN, NIGHT — the length rule counts the prefix chunk only', () => {
-    // PLAN is exactly "PL" + "AN" with no letters of the player's own. Legal, by decision.
-    const state = walk([
-      [1, 'PLAN', 3],
-      [3, 'NIGHT', 4],
     ])
     expect(state.solved).toBe(true)
     expect(state.words).toHaveLength(2)
@@ -156,6 +147,64 @@ describe('failure modes', () => {
   it('CONTAINS_SEED for the seed itself', () => {
     expect(submit(createRound(PLANT), 0, 'PLANT', dict)).toEqual({ kind: 'CONTAINS_SEED' })
   })
+
+  it('INSIDE_SEED for a stretch of the seed read back', () => {
+    // PLAN is exactly "PL" + "AN" with nothing of the player's own in it. It lands on the N
+    // — that is what made it worth refusing by name rather than leaving to NO_LANDING.
+    expect(submit(createRound(PLANT), 1, 'PLAN', dict)).toEqual({ kind: 'INSIDE_SEED' })
+    // Any chunk it could be split on, and any part of the seed, not only a prefix of it.
+    expect(submit(createRound(PLANT), 0, 'PLAN', dict)).toEqual({ kind: 'INSIDE_SEED' })
+    expect(submit(createRound('SPORT'), 0, 'PORT', dict)).toEqual({ kind: 'BAD_PREFIX' })
+    const sport = applyResult(createRound('SPORT'), submit(createRound('SPORT'), 0, 'SIP', dict))
+    expect(submit(sport, 1, 'PORT', dict)).toEqual({ kind: 'INSIDE_SEED' })
+    expect(resolve(sport, 'PORT', dict).result).toEqual({ kind: 'INSIDE_SEED' })
+  })
+
+  it('USED_TODAY for a word standing in one of the day’s other chains', () => {
+    // PEARL opens the 4-word chain. Coming to the 3-word round, it is spent.
+    const spent = new Set(['PEARL'])
+    expect(submit(createRound(PLANT), 0, 'PEARL', dict, spent)).toEqual({ kind: 'USED_TODAY' })
+    expect(resolve(createRound(PLANT), 'PEARL', dict, spent).result).toEqual({
+      kind: 'USED_TODAY',
+    })
+    expect(judge(createRound(PLANT), 'PEARL', dict, 4, spent).result).toEqual({
+      kind: 'USED_TODAY',
+    })
+    // Every other word is untouched, and so is the round judged on its own.
+    expect(submit(createRound(PLANT), 1, 'PLASMA', dict, spent)).toMatchObject({ kind: 'LANDED' })
+    expect(submit(createRound(PLANT), 0, 'PEARL', dict)).toMatchObject({ kind: 'LANDED' })
+  })
+
+  it('completes to a word another round has spent, so the refusal can name it', () => {
+    // The box is holding the L out whether the completion takes it or not, so declining to
+    // complete does not un-promise it — it only leaves Enter judging PEAR and answering that
+    // PEAR does not end on the seed. Completed, the refusal is the one the player needs.
+    const spent = new Set(['PEARL'])
+    expect(withLanding(createRound(PLANT), 'PEAR', dict, 4, spent)).toBe('PEARL')
+    expect(judge(createRound(PLANT), 'PEARL', dict, 4, spent).result).toEqual({
+      kind: 'USED_TODAY',
+    })
+  })
+
+  it('puts a refused word in the player’s mouth only when nothing acceptable fits', () => {
+    // BEARD in two, after BEE. EARNER lands on the R and the round refuses it for landing
+    // short — and EARNED, which it will take, is one letter further out. The acceptable
+    // completion wins; the refused one is the last resort, not the first.
+    const beard = applyResult(createRound('BEARD'), submit(createRound('BEARD'), 0, 'BEE', dict))
+    expect(withLanding(beard, 'EARNE', dict, 2)).toBe('EARNED')
+    // And a word made of the seed alone is no more conjurable here than it was before:
+    // INSIDE_SEED holds in both passes, so a bare P on SPORT still cannot become PORT.
+    const sport = applyResult(createRound('SPORT'), submit(createRound('SPORT'), 0, 'SIP', dict))
+    expect(withLanding(sport, 'P', dict, 3, new Set())).toBe('P')
+  })
+
+  it('leaves a word the seed only partly contains alone', () => {
+    // POO shares every letter with the stretch PO-R of SPORT and is still a word of the
+    // player's own — the seed does not contain it, so the rule has nothing to say.
+    const sport = applyResult(createRound('SPORT'), submit(createRound('SPORT'), 0, 'SIP', dict))
+    expect(submit(sport, 1, 'POO', dict)).toMatchObject({ kind: 'LANDED' })
+    expect(submit(createRound(PLANT), 1, 'PLASMA', dict)).toMatchObject({ kind: 'LANDED' })
+  })
 })
 
 describe('furthest landing wins', () => {
@@ -214,12 +263,17 @@ describe('resolve — the engine picks the chunk', () => {
   })
 
   it('breaks ties toward the shortest chunk', () => {
-    // PLAN reaches N from P (+LAN), PL (+AN) and PLA (+N) alike. The shortest wins.
-    const { chunkEnd, result } = resolve(createRound(PLANT), 'PLAN', dict)
+    // Synthetic again, and for the same reason as `findLanding`'s: a word that reaches one
+    // landing from several chunks has to end in a run the seed repeats, and every real word
+    // PLANT offers that shape — PLAN — is a stretch of the seed the rules now refuse.
+    // SANANA reaches the second A from S (+ANA), SA (+NA) and SAN (+A) alike, and is not
+    // itself inside SANAS. The shortest chunk wins.
+    const synthetic: Dict = (word) => word === 'sanana'
+    const { chunkEnd, result } = resolve(createRound('SANAS'), 'SANANA', synthetic)
     expect(chunkEnd).toBe(0)
     expect(result).toMatchObject({ kind: 'LANDED', word: { landedAt: 3 } })
     for (const alternative of [1, 2]) {
-      expect(submit(createRound(PLANT), alternative, 'PLAN', dict)).toMatchObject({
+      expect(submit(createRound('SANAS'), alternative, 'SANANA', synthetic)).toMatchObject({
         kind: 'LANDED',
         word: { landedAt: 3 },
       })
@@ -230,7 +284,6 @@ describe('resolve — the engine picks the chunk', () => {
     expect(walkWords(['PEARL', 'LAVA', 'APRON', 'NIGHT']).landings).toEqual([1, 2, 3, 4])
     expect(walkWords(['PLASMA', 'APRON', 'NIGHT']).landings).toEqual([2, 3, 4])
     expect(walkWords(['PLASMA', 'ACCOUNT']).landings).toEqual([2, 4])
-    expect(walkWords(['PLAN', 'NIGHT']).landings).toEqual([3, 4])
     expect(walkWords(['PLASMA', 'ACCOUNT']).state.solved).toBe(true)
   })
 
@@ -371,6 +424,26 @@ describe('withLanding — the landing is assumed, not demanded', () => {
     expect(withLanding(start(), 'PLAN', dict)).toBe('PLAN')
   })
 
+  it("reads a doubled seed letter as the player's own", () => {
+    // SPORT in three, after SIP: the cursor is on P and the box is holding out the O.
+    // Typing that O is a letter contributed, not a step along the seed — read as the chunk
+    // P it makes POO, which lands on the very O the box was pointing at. Read as the chunk
+    // PO it contributes nothing, so PORT stays where it belongs: typed out in full.
+    const sport = applyResult(createRound('SPORT'), submit(createRound('SPORT'), 0, 'SIP', dict))
+    expect(sport.currentPos).toBe(1)
+
+    expect(withLanding(sport, 'P', dict, 3)).toBe('P')
+    expect(withLanding(sport, 'PO', dict, 3)).toBe('POO')
+    // And the box holds still: typing the O it is showing changes nothing, and carrying on
+    // past it reaches the R without the target ever jumping back.
+    expect(withLanding(sport, 'POO', dict, 3)).toBe('POO')
+    expect(withLanding(sport, 'POOR', dict, 3)).toBe('POOR')
+    expect(judge(sport, 'POOR', dict, 3).result).toMatchObject({
+      kind: 'LANDED',
+      word: { word: 'POOR', landedAt: 3 },
+    })
+  })
+
   it('leaves a draft that no completion rescues alone', () => {
     expect(withLanding(start(), 'PZZZ', dict)).toBe('PZZZ')
     expect(withLanding(start(), '', dict)).toBe('')
@@ -406,6 +479,37 @@ describe('withLanding — the landing is assumed, not demanded', () => {
     // completes it any further. The draft comes back untouched so `judge` can say why.
     const beard = applyResult(createRound('BEARD'), submit(createRound('BEARD'), 0, 'BEE', dict))
     expect(withLanding(beard, 'EARN', dict, 2)).toBe('EARN')
+  })
+})
+
+describe('reachOf — the letters the box holds out', () => {
+  it('holds out the next letter along', () => {
+    // PEAR on PLANT runs along the seed for one letter, so the box is reaching for the L.
+    expect(reachOf(PLANT, 0, 'PEAR'.length, 1, false)).toEqual({ from: 1, letters: 'L' })
+  })
+
+  it('holds out the whole of what is left on the round’s last word', () => {
+    // CLEAN after CALL and LIVE: [E _ A _ N] rather than [E _ A] N — nothing short of the
+    // final letter is a landing the round will take, so all of it comes inside the box.
+    expect(reachOf('CLEAN', 2, 1, 1, true)).toEqual({ from: 3, letters: 'AN' })
+    expect(reachOf('CLEAN', 2, 1, 1, false)).toEqual({ from: 3, letters: 'A' })
+  })
+
+  it('is the letters Enter has to judge along with the typed ones', () => {
+    // ESSAY, second S, last word: ATURDA arrives as SATURDA and draws as SATURDAY. Judging
+    // it without that Y answered about a word nobody typed and nobody could see.
+    const essay = applyResult(createRound('ESSAY'), submit(createRound('ESSAY'), 0, 'EXPRESS', dict))
+    expect(essay.currentPos).toBe(2)
+
+    const word = withPivot(essay, 'ATURDA')
+    expect(word).toBe('SATURDA')
+    // Nothing completes it — SATURDAY is a proper noun, so the word list has never had it.
+    expect(withLanding(essay, word, dict, 2)).toBe('SATURDA')
+
+    const matched = seedMatchLength(essay, word)
+    const { letters } = reachOf(essay.seed, essay.currentPos, word.length, matched, true)
+    expect(word + letters).toBe('SATURDAY')
+    expect(judge(essay, word + letters, dict, 2).result).toEqual({ kind: 'NOT_A_WORD' })
   })
 })
 

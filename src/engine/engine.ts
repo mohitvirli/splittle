@@ -1,5 +1,5 @@
 import { MIN_WORD_LENGTH } from './types'
-import type { Dict, RoundState, SubmitResult } from './types'
+import type { Dict, RoundState, Spent, SubmitResult } from './types'
 
 export function createRound(seed: string): RoundState {
   return { seed: seed.toUpperCase(), currentPos: 0, words: [], solved: false }
@@ -34,12 +34,16 @@ export function findLanding(seed: string, chunkEnd: number, word: string): numbe
  * Check order follows the spec: length, then dictionary, so NOT_A_WORD always wins over the
  * structural failures. NOT_A_WORD and NO_LANDING are the two the player must be able to
  * tell apart; the rest exist so the UI can say something specific.
+ *
+ * `spent` is the day's other chains. Left out, the round is judged on its own, which is what
+ * the solver and every structural test want — a seed's targets are ranked one at a time.
  */
 export function submit(
   state: RoundState,
   chunkEnd: number,
   rawWord: string,
   dict: Dict,
+  spent?: Spent,
 ): SubmitResult {
   if (state.solved) throw new Error('submit called on a solved round')
   if (chunkEnd < state.currentPos || chunkEnd > state.seed.length - 1) {
@@ -57,7 +61,16 @@ export function submit(
   if (!word.startsWith(chunk)) return { kind: 'BAD_PREFIX' }
   if (word.length <= chunk.length) return { kind: 'TOO_SHORT' }
   if (state.words.some((w) => w.word === word)) return { kind: 'ALREADY_USED' }
+  /* Straight after its within-round twin, because it is the same complaint at a wider scope:
+     the day's three targets are three ways through one seed, and a word only gets to be part
+     of one of them. */
+  if (spent?.has(word)) return { kind: 'USED_TODAY' }
   if (word.includes(state.seed)) return { kind: 'CONTAINS_SEED' }
+  /* A word the seed already contains is a stretch of the seed read back: PORT out of SPORT,
+     PLAN out of PLANT. It lands — that is the trouble with it — but it splits nothing, so the
+     chain it builds is the seed walked end to end. Ahead of the landing check, because a word
+     this refuses is refused whatever it lands on. */
+  if (state.seed.includes(word)) return { kind: 'INSIDE_SEED' }
 
   const landedAt = findLanding(state.seed, chunkEnd, word)
   if (landedAt === null) return { kind: 'NO_LANDING' }
@@ -81,7 +94,12 @@ export interface Resolution {
  * Ties go to the shortest chunk, which is only a presentation choice — the seed letters
  * consumed are the same either way.
  */
-export function resolve(state: RoundState, rawWord: string, dict: Dict): Resolution {
+export function resolve(
+  state: RoundState,
+  rawWord: string,
+  dict: Dict,
+  spent?: Spent,
+): Resolution {
   const maxChunkEnd = state.seed.length - 2
   const word = rawWord.trim().toUpperCase()
 
@@ -90,7 +108,7 @@ export function resolve(state: RoundState, rawWord: string, dict: Dict): Resolut
 
   for (let chunkEnd = state.currentPos; chunkEnd <= maxChunkEnd; chunkEnd++) {
     if (!word.startsWith(state.seed.slice(state.currentPos, chunkEnd + 1))) break
-    const result = submit(state, chunkEnd, word, dict)
+    const result = submit(state, chunkEnd, word, dict, spent)
     if (result.kind === 'LANDED' && result.word.landedAt > bestLanding) {
       bestLanding = result.word.landedAt
       best = { chunkEnd, result }
@@ -99,7 +117,7 @@ export function resolve(state: RoundState, rawWord: string, dict: Dict): Resolut
 
   if (best) return best
   // Nothing landed. The minimal chunk gives the most useful reason why.
-  return { chunkEnd: state.currentPos, result: submit(state, state.currentPos, word, dict) }
+  return { chunkEnd: state.currentPos, result: submit(state, state.currentPos, word, dict, spent) }
 }
 
 /**
@@ -117,8 +135,9 @@ export function judge(
   rawWord: string,
   dict: Dict,
   target: number,
+  spent?: Spent,
 ): Resolution {
-  const resolution = resolve(state, rawWord, dict)
+  const resolution = resolve(state, rawWord, dict, spent)
   if (resolution.result.kind !== 'LANDED') return resolution
 
   const used = state.words.length
@@ -163,6 +182,10 @@ export function withPivot(state: RoundState, rawDraft: string): string {
  * word that worked before working unchanged. Only one that goes nowhere is completed, and the
  * shortest completion wins, so the letter inferred is the nearest one — the one on screen.
  *
+ * Nothing here has to guard against a word being conjured out of the seed alone — a bare P on
+ * SPORT becoming PORT, and the round playing itself. Every completion is offered to the same
+ * `judge` a typed word gets, and INSIDE_SEED turns those away wherever they come from.
+ *
  * `target` is the tier's word count, and it is what makes the letters inferred the ones the
  * player is actually being shown. A landing the round would reject is not a landing worth
  * putting in their mouth: on BEARD after BEE, with one word left, EARNE must not become
@@ -175,10 +198,13 @@ export function withLanding(
   rawDraft: string,
   dict: Dict,
   target?: number,
+  spent?: Spent,
 ): string {
   const accepted = (candidate: string) => {
     const { result } =
-      target === undefined ? resolve(state, candidate, dict) : judge(state, candidate, dict, target)
+      target === undefined
+        ? resolve(state, candidate, dict, spent)
+        : judge(state, candidate, dict, target, spent)
     return result.kind === 'LANDED'
   }
 
@@ -186,26 +212,65 @@ export function withLanding(
   if (!word || state.solved) return word
   if (accepted(word)) return word
 
-  /* Nothing of the player's own yet — the draft is still running along the seed. Completing
-     here would hand back a word made only of seed letters: on STONE a bare S becomes ST,
-     which is a move the player never asked for. Typing ST out in full still plays it; it
-     just is not something a single keystroke should conjure. */
-  if (seedMatchLength(state, word) === word.length) return word
-
   const { seed, currentPos } = state
   const maxChunkEnd = seed.length - 2
 
   // Suffix length outside chunk, so the fewest letters are ever put into the player's mouth.
-  for (let reach = 1; reach < seed.length - currentPos; reach++) {
-    for (let chunkEnd = currentPos; chunkEnd <= maxChunkEnd; chunkEnd++) {
-      const m = chunkEnd + reach
-      if (m > seed.length - 1) break
-      if (!word.startsWith(seed.slice(currentPos, chunkEnd + 1))) break
-      const candidate = word + seed.slice(chunkEnd + 1, m + 1)
-      if (accepted(candidate)) return candidate
+  const complete = (fits: (candidate: string) => boolean): string | null => {
+    for (let reach = 1; reach < seed.length - currentPos; reach++) {
+      for (let chunkEnd = currentPos; chunkEnd <= maxChunkEnd; chunkEnd++) {
+        const m = chunkEnd + reach
+        if (m > seed.length - 1) break
+        if (!word.startsWith(seed.slice(currentPos, chunkEnd + 1))) break
+        const candidate = word + seed.slice(chunkEnd + 1, m + 1)
+        if (fits(candidate)) return candidate
+      }
     }
+    return null
   }
-  return word
+
+  /**
+   * Second choice: a real word that lands, refused only by the day's bookkeeping.
+   *
+   * The round is asked with an empty chain and no target, so ALREADY_USED, USED_TODAY,
+   * ENDS_EARLY and MUST_FINISH all stand aside while NOT_A_WORD, NO_LANDING, CONTAINS_SEED
+   * and INSIDE_SEED still hold — PORT is no more conjurable here than it was above.
+   *
+   * The box is holding that letter out whether or not the completion takes it, so refusing
+   * to complete does not un-promise it; it only means Enter judges something shorter than
+   * what is on screen. On ESSAY with ERAS spent, typing RA showed ERAS and then complained
+   * that ERA does not end on S. Completed anyway, the refusal is the one the player needs:
+   * ERAS was already used in your 4-word chain.
+   */
+  const bare: RoundState = { ...state, words: [] }
+  const lands = (candidate: string) => resolve(bare, candidate, dict).result.kind === 'LANDED'
+
+  return complete(accepted) ?? complete(lands) ?? word
+}
+
+/**
+ * The seed letters the box is holding out in front of the player, and where they start.
+ *
+ * The word has to come back down onto the seed, and until it does the box shows the letters
+ * it would come down on — normally the next one along, and on the round's last word all of
+ * what is left, since nothing short of the final letter will do.
+ *
+ * One home for the formula because two things read it: the display draws those letters, and
+ * Enter judges the word including them. Apart, the box promised a letter the engine never
+ * saw — SATURDA on screen as SATURDAY, refused as SATURDA.
+ */
+export function reachOf(
+  seed: string,
+  currentPos: number,
+  wordLength: number,
+  matched: number,
+  mustFinish: boolean,
+): { from: number; letters: string } {
+  const headLen = Math.max(Math.min(matched, wordLength), 1)
+  const from = currentPos + headLen
+  const last = seed.length - 1
+  const to = mustFinish ? last : Math.min(from, last)
+  return { from, letters: seed.slice(from, to + 1) }
 }
 
 /**
@@ -254,7 +319,8 @@ export function play(
   chunkEnd: number,
   rawWord: string,
   dict: Dict,
+  spent?: Spent,
 ): { result: SubmitResult; state: RoundState } {
-  const result = submit(state, chunkEnd, rawWord, dict)
+  const result = submit(state, chunkEnd, rawWord, dict, spent)
   return { result, state: applyResult(state, result) }
 }

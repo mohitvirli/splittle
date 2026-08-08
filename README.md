@@ -10,6 +10,11 @@ type a word that starts where the last one landed and ends somewhere on the rema
 seed letters — that landing point becomes the start of the next word. The chain has to
 use up the whole seed in exactly the target number of words, no more, no fewer.
 
+Every word has to be your own: one the seed already contains — PORT out of SPORT, PLAN
+out of PLANT — reads the puzzle back rather than splitting it, and is turned away. A word
+is also spent for the day once played, so the three tiers cannot share one — otherwise the
+3-word chain is the 4-word one with a join taken out.
+
 Three tiers — 4, 3, and 2 words — share the same seed but demand a shorter chain each
 time, so the same puzzle gets harder as the word budget shrinks.
 
@@ -36,10 +41,11 @@ npm run puzzles -- --write CLEAN BEARD SPORT --from 2026-08-05
 The ranking shows how many chains each seed has per tier, and how many distinct words
 can open and close a two-word chain — a seed with one opener has one answer, however
 many chains it reports. Writing refuses any seed that is not solvable at all three
-tiers, and `puzzles.test.ts` re-solves the shipped pool on every test run, so a seed
-that goes stale — a bumped dictionary, a changed word-length bound — fails the build
-rather than becoming a day nobody can finish. That test also fails once the pool runs
-out of days.
+tiers *at once* — since a word is spent for the day, the three chains have to exist
+together, not one at a time — and `puzzles.test.ts` re-solves the shipped pool on every
+test run, so a seed that goes stale — a bumped dictionary, a changed word-length bound —
+fails the build rather than becoming a day nobody can finish. That test also fails once
+the pool runs out of days.
 
 ## Stack
 

@@ -73,8 +73,13 @@ if (writeAt === -1) {
   for (const seed of seeds) {
     const report = inspect(seed, tight, wide)
     if (!isPlayable(report)) {
-      const dead = TARGETS.filter((t) => report.wide[t].count === 0).join(', ')
-      throw new Error(`${seed} has no common-word solution at ${dead} — refusing to write`)
+      const dead = TARGETS.filter((t) => report.wide[t].count === 0)
+      // A seed can clear every target on its own and still fail here: the three chains have
+      // to be findable at the same time, because a word spent in one round is spent for good.
+      const why = dead.length > 0
+        ? `has no common-word solution at ${dead.join(', ')}`
+        : 'cannot be played through without reusing a word between rounds'
+      throw new Error(`${seed} ${why} — refusing to write`)
     }
     const two = report.tight[2]
     console.log(

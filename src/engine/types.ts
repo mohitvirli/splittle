@@ -10,6 +10,13 @@ export const MAX_WORD_LENGTH = 12
 /** Membership test for a single lowercase word. Injected so the engine stays pure. */
 export type Dict = (word: string) => boolean
 
+/**
+ * Words the day has already spent, in uppercase — the chains standing in the round's *other*
+ * targets. Injected like the dictionary, and for the same reason: which words those are is a
+ * fact about the player's day, not about the round in front of them.
+ */
+export type Spent = ReadonlySet<string>
+
 export interface LandedWord {
   word: string
   /** currentPos before the turn */
@@ -39,7 +46,14 @@ export type SubmitResult =
   | { kind: 'BAD_PREFIX' }
   | { kind: 'TOO_SHORT' }
   | { kind: 'ALREADY_USED' }
+  /* Its bigger brother: already used, but in one of the day's other rounds. The three targets
+     share a seed, so without this the 3-word chain is the 4-word one with a join taken out. */
+  | { kind: 'USED_TODAY' }
   | { kind: 'CONTAINS_SEED' }
+  /* The mirror of CONTAINS_SEED: a word that sits inside the seed rather than around it.
+     PORT on SPORT is a run of the seed with nothing of the player's own in it — the puzzle
+     is meant to be split, not read back. */
+  | { kind: 'INSIDE_SEED' }
   // Tier rules. A target of N means exactly N words — not "N or fewer".
   | { kind: 'ENDS_EARLY' }
   | { kind: 'MUST_FINISH' }

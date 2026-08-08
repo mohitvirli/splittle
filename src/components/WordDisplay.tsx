@@ -1,3 +1,5 @@
+import { reachOf } from '../engine/engine'
+
 interface Props {
   seed: string
   currentPos: number
@@ -5,8 +7,12 @@ interface Props {
   effective: string
   /** Seed letters the word runs along from the cursor. */
   matched: number
-  /** How the word would land, or null. Also carries the chunk boundary. */
-  preview: { chunkEnd: number; landedAt: number } | null
+  /**
+   * Where the word lands, or null. Carries the chunk boundary, and whether the round would
+   * take it — a word it turns away still lands somewhere, and the box has to lay it out
+   * there rather than reach for a letter the word is already sitting on.
+   */
+  preview: { chunkEnd: number; landedAt: number; accepted: boolean } | null
   /** The round's last word, so the only landing left is the seed's final letter. */
   mustFinish: boolean
   solved: boolean
@@ -36,8 +42,11 @@ export function WordDisplay({
   justCovered,
 }: Props) {
   const last = seed.length - 1
+  // Two questions, and they used to be one. Where the word sits decides which letters are
+  // the seed's; whether the round will have it decides how the box looks. A refused word
+  // still sits somewhere, and drawing it anywhere else means drawing a letter twice.
   const lands = preview !== null && !solved
-  const active = lands || solved
+  const active = (preview?.accepted ?? false) || solved
 
   const seedTone = active ? 'text-accent' : 'text-ink'
   // Slightly softer than the seed's own letters — enough to read as "yours", not enough
@@ -69,8 +78,13 @@ export function WordDisplay({
   // round's last word the only landing the engine will take is the seed's final letter, so
   // the box reaches all the way there instead, and everything in between comes inside it.
   // On CLEAN after CALL and LIVE, that is [E _ A _ N] rather than [E _ A] N.
-  const targetEnd = mustFinish ? last : Math.min(headEnd + 1, last)
-  const targets = showTarget ? seed.slice(headEnd + 1, targetEnd + 1) : ''
+  //
+  // `reachOf` rather than the arithmetic in place, because Enter judges the word with these
+  // same letters on the end of it — one formula, so the box cannot promise what Enter has
+  // not been shown.
+  const reach = reachOf(seed, currentPos, effective.length, matched, mustFinish)
+  const targetEnd = reach.letters.length > 0 ? reach.from + reach.letters.length - 1 : last
+  const targets = showTarget ? reach.letters : ''
 
   // Where the split could still fall. The word is chunk + the player's letters + the seed
   // letters it comes back down on, and the chunk can end on any of the letters shown, so
