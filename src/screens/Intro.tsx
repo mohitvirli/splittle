@@ -22,6 +22,25 @@ function restingRect(el: HTMLElement): DOMRect {
   return rect
 }
 
+/**
+ * Where the wordmark has to travel to stand in the middle of the page.
+ *
+ * Only the element's own top-left corner is read — never its width or height. Those are
+ * left to `xPercent`/`yPercent`, which GSAP writes into the transform as percentages and
+ * the browser resolves against the live box on every paint. That is what makes the middle
+ * hold when the box changes size underneath it: the wordmark is measured on the first
+ * frame, when Geist Pixel has not swapped in yet, so the fallback's wider "splittle" is
+ * what a width-based sum would centre — and the real one, narrower by the time it paints,
+ * then sits half that difference left of centre for the whole of the landing.
+ */
+function placement(el: HTMLElement): { x: number; y: number } {
+  const rect = restingRect(el)
+  return {
+    x: window.innerWidth / 2 - rect.left,
+    y: document.documentElement.clientHeight * 0.36 - rect.top,
+  }
+}
+
 interface Props {
   onDone: () => void
   /** The playing screen's field. Focused on the Play tap — see start(). */
@@ -47,17 +66,18 @@ export function Intro({ onDone, inputRef, onOpenHelp, teachOnPlay }: Props) {
       const title = masthead()
       if (!title) return
 
-      const rect = restingRect(title)
-      const dx = window.innerWidth / 2 - (rect.left + rect.width / 2)
-      const dy = document.documentElement.clientHeight * 0.36 - (rect.top + rect.height / 2)
+      const home = placement(title)
       const t = motion()
 
       /* The title is put in place before the first paint and while it is still invisible, so
          the page never shows it up in the header and then lurches — all anyone sees is the
          fade and the tail of the settle. The labels wait; the playing screen brings them in. */
       gsap.set(title, {
-        x: dx,
-        y: dy,
+        x: home.x,
+        y: home.y,
+        // Half its own box, taken off in the browser's units rather than ours — see placement.
+        xPercent: -50,
+        yPercent: -50,
         scale: 2.6,
         autoAlpha: 0,
         position: 'relative',
@@ -76,8 +96,8 @@ export function Intro({ onDone, inputRef, onOpenHelp, teachOnPlay }: Props) {
         // drifts up and swells the last fraction of its scale while it is arriving.
         .fromTo(
           title,
-          { y: dy + 18, scale: 2.42 },
-          { y: dy, scale: 2.6, duration: 1.1 * t, ease: 'expo.out' },
+          { y: home.y + 18, scale: 2.42 },
+          { y: home.y, scale: 2.6, duration: 1.1 * t, ease: 'expo.out' },
           0,
         )
         .fromTo(
@@ -92,6 +112,18 @@ export function Intro({ onDone, inputRef, onOpenHelp, teachOnPlay }: Props) {
           },
           0.34 * t,
         )
+
+      /* The middle of the page moves when the viewport does — a phone turned on its side,
+         a desktop window dragged wider. Nothing else here re-measures, so without this the
+         wordmark keeps whatever centre it was handed on load. Only the resting place is
+         rewritten; the entrance is holding y for its first second and a resize inside that
+         window is not worth fighting it over. */
+      const recentre = () => {
+        if (leaving.current) return
+        gsap.set(title, placement(title))
+      }
+      window.addEventListener('resize', recentre)
+      return () => window.removeEventListener('resize', recentre)
     },
     { scope: root },
   )
@@ -129,7 +161,21 @@ export function Intro({ onDone, inputRef, onOpenHelp, teachOnPlay }: Props) {
       0,
     )
     if (title) {
-      tl.to(title, { x: 0, y: 0, scale: 1, duration: 0.78 * t, ease: 'expo.inOut' }, 0.08 * t)
+      // The percentage offsets unwind with everything else — the header's own place for the
+      // wordmark is the whole transform at zero, not a box still half a width to the left.
+      tl.to(
+        title,
+        {
+          x: 0,
+          y: 0,
+          xPercent: 0,
+          yPercent: 0,
+          scale: 1,
+          duration: 0.78 * t,
+          ease: 'expo.inOut',
+        },
+        0.08 * t,
+      )
     }
   })
 
