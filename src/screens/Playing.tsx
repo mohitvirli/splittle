@@ -9,6 +9,7 @@ import { TIERS } from '../game/storage'
 import type { Chains } from '../game/storage'
 import { mask, shareText, weld } from '../game/ribbon'
 import { useTrapezium } from '../game/useTrapezium'
+import { MIN_WORD_LENGTH } from '../engine/types'
 import type { SubmitFailure } from '../engine/types'
 
 gsap.registerPlugin(useGSAP)
@@ -33,6 +34,11 @@ function errorText(kind: SubmitFailure, ctx: ErrorContext): string {
   switch (kind) {
     case 'NOT_A_WORD':
       return `${word} isn’t in the dictionary.`
+    case 'TOO_FEW_LETTERS':
+      // Names the word, because the box is holding the letter it is reaching for out in
+      // front of the player — what they are looking at is a letter longer than what Enter
+      // just judged, and "it" would leave them counting the wrong thing.
+      return `${word} is ${word.length} letters. They have to be at least ${MIN_WORD_LENGTH}.`
     case 'NO_LANDING':
       return `${word} is a word, but it doesn’t end on ${listLetters(reachable)}.`
     case 'BAD_PREFIX':
@@ -89,7 +95,9 @@ export function Playing({ active, intro, inputRef, onHome, onOpenHelp }: Playing
     if (game.ready && !game.allDone) keepFocus()
   }, [keepFocus, game.ready, game.allDone, game.tier, game.round.words.length, game.error?.nonce])
 
-  const shake = game.error?.kind === 'NOT_A_WORD'
+  // The two refusals of the word itself. The rest are about where it sits in the round, and
+  // a shake there reads as "that isn't a word", which is the wrong thing to say.
+  const shake = game.error?.kind === 'NOT_A_WORD' || game.error?.kind === 'TOO_FEW_LETTERS'
   /**
    * Everything the intro is not carrying holds back until the landing has handed over.
    * Visibility is GSAP's now — js-chrome is only the handle it picks these nodes up by —

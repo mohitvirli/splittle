@@ -83,15 +83,16 @@ describe('the four PLANT solutions', () => {
 describe('MIN_WORD_LENGTH = 3', () => {
   it('turns two-letter pure seed slices away', () => {
     // LA and AN walk the seed a letter at a time and contribute nothing of the player's own.
-    // They were legal single-step moves under the old bound; the dictionary is now built
-    // without them, so the engine never has to carry a length rule of its own.
+    // They were legal single-step moves under the old bound, and the dictionary is now built
+    // without them — but the engine still names the bound itself, because "LA is not in the
+    // dictionary" is a poor account of a word the player can find in one.
     expect(dict('la')).toBe(false)
     expect(dict('an')).toBe(false)
 
     let state = createRound(PLANT)
     state = applyResult(state, submit(state, 0, 'PEARL', dict))
     expect(state.currentPos).toBe(1)
-    expect(submit(state, 1, 'LA', dict)).toEqual({ kind: 'NOT_A_WORD' })
+    expect(submit(state, 1, 'LA', dict)).toEqual({ kind: 'TOO_FEW_LETTERS' })
   })
 
   it('still admits three letters', () => {
@@ -110,6 +111,14 @@ describe('MIN_WORD_LENGTH = 3', () => {
 describe('failure modes', () => {
   it('NOT_A_WORD for a non-word', () => {
     expect(submit(createRound(PLANT), 0, 'ZZZZZ', dict)).toEqual({ kind: 'NOT_A_WORD' })
+  })
+
+  it('TOO_FEW_LETTERS below the bound, even for a word English would allow', () => {
+    // PA is a word; the dictionary is simply built above it. Answering NOT_A_WORD here reads
+    // as a hole in the dictionary rather than the rule it is.
+    expect(submit(createRound(PLANT), 0, 'PA', dict)).toEqual({ kind: 'TOO_FEW_LETTERS' })
+    // And it is what comes back through resolve, which is what the screen reports.
+    expect(resolve(createRound(PLANT), 'PA', dict).result).toEqual({ kind: 'TOO_FEW_LETTERS' })
   })
 
   it('NO_LANDING for a real word that ends nowhere on the remaining seed', () => {

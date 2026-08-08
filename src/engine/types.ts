@@ -31,6 +31,10 @@ export interface RoundState {
 export type SubmitResult =
   | { kind: 'LANDED'; word: LandedWord }
   | { kind: 'NOT_A_WORD' }
+  /* Its own answer rather than NOT_A_WORD: the dictionary is built to MIN_WORD_LENGTH, so
+     AN and IT are missing from it as a rule of the game, not as a fact about English.
+     Telling a player that AN is not in the dictionary reads as a bug in the dictionary. */
+  | { kind: 'TOO_FEW_LETTERS' }
   | { kind: 'NO_LANDING' }
   | { kind: 'BAD_PREFIX' }
   | { kind: 'TOO_SHORT' }

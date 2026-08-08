@@ -1,3 +1,4 @@
+import { MIN_WORD_LENGTH } from './types'
 import type { Dict, RoundState, SubmitResult } from './types'
 
 export function createRound(seed: string): RoundState {
@@ -30,7 +31,7 @@ export function findLanding(seed: string, chunkEnd: number, word: string): numbe
  * Validate a word against the current round. Pure — does not mutate or advance state.
  * Feed the result to `applyResult` to move the cursor.
  *
- * Check order follows the spec: dictionary first, so NOT_A_WORD always wins over the
+ * Check order follows the spec: length, then dictionary, so NOT_A_WORD always wins over the
  * structural failures. NOT_A_WORD and NO_LANDING are the two the player must be able to
  * tell apart; the rest exist so the UI can say something specific.
  */
@@ -48,6 +49,10 @@ export function submit(
   const word = rawWord.trim().toUpperCase()
   const chunk = chunkOf(state, chunkEnd)
 
+  /* Ahead of the dictionary, and the one thing that outranks it: everything below the bound
+     is absent from the word list by construction, so NOT_A_WORD would be the answer to every
+     two-letter attempt — including the ones that are perfectly good English. */
+  if (word.length < MIN_WORD_LENGTH) return { kind: 'TOO_FEW_LETTERS' }
   if (!dict(word.toLowerCase())) return { kind: 'NOT_A_WORD' }
   if (!word.startsWith(chunk)) return { kind: 'BAD_PREFIX' }
   if (word.length <= chunk.length) return { kind: 'TOO_SHORT' }
